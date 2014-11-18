@@ -3,11 +3,11 @@
 <head>
     <title>Defects per Story Points</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Tue Nov 18 2014 07:18:17 GMT-0700 (MST) -->
+    <!--  Build Date: Tue Nov 18 2014 08:06:46 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Nov 18 2014 07:18:17 GMT-0700 (MST)";
-        var CHECKSUM = 3155932584;
+        var APP_BUILD_DATE = "Tue Nov 18 2014 08:06:46 GMT-0700 (MST)";
+        var CHECKSUM = 3010075191;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -257,16 +257,9 @@ Ext.define('CustomApp', {
         this.logger.log('_updateChart', newValue,this.down('#end-date-picker').getValue());
         
         if (this._validateDateRange(this.down('#start-date-picker').getValue(), this.down('#end-date-picker').getValue())){
-
             var newStartDate = Rally.util.DateTime.toIsoString(this.down('#start-date-picker').getValue(), true);
             var newEndDate = Rally.util.DateTime.toIsoString(this.down('#end-date-picker').getValue(),true); 
             this._createChart(newStartDate, newEndDate);
-
-//            if (this.down('#rally-chart')){
-//                this.down('#rally-chart').setCalculatorConfig({startDate: newStartDate, endDate: newEndDate});
-//            } else {
-//                this._createChart(newStartDate, newEndDate);
-//            }
         }
     },
     _createChart: function(newStartDate, newEndDate){
@@ -276,8 +269,6 @@ Ext.define('CustomApp', {
         
         this.down('#display_box').add({
             xtype: 'rallychart',
-            minWidth: 400,
-            minHeight: 400,
             itemId: 'rally-chart',
             calculatorType: 'LiveDefectCalculator',
             storeType: 'Rally.data.lookback.SnapshotStore',
@@ -327,7 +318,7 @@ Ext.define('CustomApp', {
                                ScheduleState: {$lt: 'Live'},
                            }]
                        }], 
-                 _TypeHierarchy: {$in: ['HierarchicalRequirement','Defect']},
+//                 _TypeHierarchy: {$in: ['HierarchicalRequirement','Defect']},
             },
             fetch: ['ScheduleState','PlanEstimate','_TypeHierarchy','_ValidTo','_ValidFrom'],
             hydrate: ['ScheduleState','_TypeHierarchy'],
@@ -338,7 +329,6 @@ Ext.define('CustomApp', {
             context: this.getContext().getDataContext(),
             limit: Infinity
         };
-
     }
 });
             
