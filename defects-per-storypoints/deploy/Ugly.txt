@@ -3,10 +3,10 @@
 <head>
     <title>Defects per Story Points</title>
     <!--  (c) 2013 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Mon Nov 17 2014 21:34:28 GMT-0700 (MST) -->
+    <!--  Build Date: Tue Nov 18 2014 07:18:17 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Mon Nov 17 2014 21:34:28 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Tue Nov 18 2014 07:18:17 GMT-0700 (MST)";
         var CHECKSUM = [%= checksum %];
     </script>
     

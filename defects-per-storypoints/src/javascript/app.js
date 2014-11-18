@@ -2,24 +2,87 @@ Ext.define('CustomApp', {
     extend: 'Rally.app.App',
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
+    MIN_DATE_RANGE_IN_DAYS: 15,
     items: [
-        {xtype:'container',itemId:'message_box',tpl:'Hello, <tpl>{_refObjectName}</tpl>'},
+        {xtype:'container',itemId:'date_box',layout: {type:'hbox'}, padding: 10},
         {xtype:'container',itemId:'display_box'},
         {xtype:'tsinfolink'}
     ],
     launch: function() {
-        this.down('#message_box').update(this.getContext().getUser());
- 
-        var calculator = Ext.create('LiveDefectCalculator',{});
-        var now = new Date();
+        Ext.create('LiveDefectCalculator',{});
+        
+        this.down('#date_box').add({
+            xtype: 'rallydatefield',
+            fieldLabel: 'Start Date',
+            itemId: 'start-date-picker',
+            listeners: {
+                scope: this,
+                select: this._updateChart,
+                change: this._updateChart
+            }
+        });
+        
+        this.down('#date_box').add({
+            xtype: 'rallydatefield',
+            fieldLabel: 'End Date',
+            itemId: 'end-date-picker',
+            listeners: {
+                scope: this,
+                select: this._updateChart,
+                change: this._updateChart
+            }
+        });
+        
+        this.down('#start-date-picker').setValue(Rally.util.DateTime.add(new Date(), 'day', -30),true);
+        this.down('#end-date-picker').setValue(new Date(),true);
+        
+    },
+    _validateDateRange: function(newStartDate,newEndDate){
+        this.logger.log('_validateDateRange', newStartDate, newEndDate);
+        
+        var currentStartDate = new Date(), currentEndDate = new Date();
+        if (this.down('#rally-chart')){
+            currentStartDate = this.down('#rally-chart').calculatorConfig.startDate, 
+            currentEndDate = this.down('#rally-chart').calculatorConfig.endDate;
+        }
+        
+        if (newStartDate && newEndDate && (Rally.util.DateTime.getDifference(newEndDate, newStartDate, 'day') > this.MIN_DATE_RANGE_IN_DAYS)){
+            return true;
+        }
+        return false;
+    },
+    _updateChart: function(field, newValue){
+        this.logger.log('_updateChart', newValue,this.down('#end-date-picker').getValue());
+        
+        if (this._validateDateRange(this.down('#start-date-picker').getValue(), this.down('#end-date-picker').getValue())){
+
+            var newStartDate = Rally.util.DateTime.toIsoString(this.down('#start-date-picker').getValue(), true);
+            var newEndDate = Rally.util.DateTime.toIsoString(this.down('#end-date-picker').getValue(),true); 
+            this._createChart(newStartDate, newEndDate);
+
+//            if (this.down('#rally-chart')){
+//                this.down('#rally-chart').setCalculatorConfig({startDate: newStartDate, endDate: newEndDate});
+//            } else {
+//                this._createChart(newStartDate, newEndDate);
+//            }
+        }
+    },
+    _createChart: function(newStartDate, newEndDate){
+        if (this.down('#rally-chart')){
+            this.down('#rally-chart').destroy();
+        }
+        
         this.down('#display_box').add({
             xtype: 'rallychart',
+            minWidth: 400,
+            minHeight: 400,
+            itemId: 'rally-chart',
             calculatorType: 'LiveDefectCalculator',
             storeType: 'Rally.data.lookback.SnapshotStore',
             storeConfig: this._getStoreConfig(),
             calculatorConfig: {
-                startDate: Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(now, 'day', -60),true),
-                endDate: Rally.util.DateTime.toIsoString(new Date(),true)
+                startDate: newStartDate, //Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date(), 'day', -60),true),
+                endDate: newEndDate //Rally.util.DateTime.toIsoString(new Date(),true)
             },
             chartConfig: {
                 chart: {
@@ -44,6 +107,7 @@ Ext.define('CustomApp', {
                 ]
             }
         });
+
     },
     _getStoreConfig: function(){
         return {
