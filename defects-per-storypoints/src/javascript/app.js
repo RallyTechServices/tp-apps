@@ -55,16 +55,9 @@ Ext.define('CustomApp', {
         this.logger.log('_updateChart', newValue,this.down('#end-date-picker').getValue());
         
         if (this._validateDateRange(this.down('#start-date-picker').getValue(), this.down('#end-date-picker').getValue())){
-
             var newStartDate = Rally.util.DateTime.toIsoString(this.down('#start-date-picker').getValue(), true);
             var newEndDate = Rally.util.DateTime.toIsoString(this.down('#end-date-picker').getValue(),true); 
             this._createChart(newStartDate, newEndDate);
-
-//            if (this.down('#rally-chart')){
-//                this.down('#rally-chart').setCalculatorConfig({startDate: newStartDate, endDate: newEndDate});
-//            } else {
-//                this._createChart(newStartDate, newEndDate);
-//            }
         }
     },
     _createChart: function(newStartDate, newEndDate){
@@ -74,8 +67,6 @@ Ext.define('CustomApp', {
         
         this.down('#display_box').add({
             xtype: 'rallychart',
-            minWidth: 400,
-            minHeight: 400,
             itemId: 'rally-chart',
             calculatorType: 'LiveDefectCalculator',
             storeType: 'Rally.data.lookback.SnapshotStore',
@@ -125,7 +116,7 @@ Ext.define('CustomApp', {
                                ScheduleState: {$lt: 'Live'},
                            }]
                        }], 
-                 _TypeHierarchy: {$in: ['HierarchicalRequirement','Defect']},
+//                 _TypeHierarchy: {$in: ['HierarchicalRequirement','Defect']},
             },
             fetch: ['ScheduleState','PlanEstimate','_TypeHierarchy','_ValidTo','_ValidFrom'],
             hydrate: ['ScheduleState','_TypeHierarchy'],
@@ -136,6 +127,5 @@ Ext.define('CustomApp', {
             context: this.getContext().getDataContext(),
             limit: Infinity
         };
-
     }
 });
