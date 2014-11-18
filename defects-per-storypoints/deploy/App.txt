@@ -3,11 +3,11 @@
 <head>
     <title>Defects per Story Points</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Mon Nov 17 2014 11:25:11 GMT-0700 (MST) -->
+    <!--  Build Date: Mon Nov 17 2014 21:34:28 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Mon Nov 17 2014 11:25:11 GMT-0700 (MST)";
-        var CHECKSUM = 1063602732;
+        var APP_BUILD_DATE = "Mon Nov 17 2014 21:34:28 GMT-0700 (MST)";
+        var CHECKSUM = 2032224901;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -15,6 +15,68 @@
     <script type="text/javascript">
         Rally.onReady(function() {
              
+Ext.define("LiveDefectCalculator", {
+     extend: "Rally.data.lookback.calculator.TimeSeriesCalculator",
+     normalizationCoefficient: 100,
+     runCalculation: function (snapshots) {
+         var calculatorConfig = this._prepareCalculatorConfig(),
+             seriesConfig = this._buildSeriesConfig(calculatorConfig);
+
+         var calculator = this.prepareCalculator(calculatorConfig);
+         calculator.addSnapshots(snapshots, this._getStartDate(snapshots), this._getEndDate(snapshots));
+         
+         
+         return this._transformLumenizeDataToHighchartsSeries(calculator, seriesConfig);
+     },
+     getMetrics: function () {
+         return [
+             {
+                 "field": "LivingDefects",
+                 "as": "LiveDefects",
+                 "display": "line",
+                 "f": "sum"
+             },{
+                 "field": "StoryPoints",
+                 "as": "DerivedStoryPoints",
+                 "display": "line",
+                 "f": "sum"
+             }];
+     },
+     getDerivedStoryPoints: function(snapshot){
+         if (Ext.Array.contains(snapshot._TypeHierarchy, 'HierarchicalRequirement') && (snapshot.ScheduleState == 'Live')){
+             return snapshot.PlanEstimate || 0;
+         }
+         return 0;
+     },
+     getDerivedLivingDefects: function(snapshot){
+         
+         if (Ext.Array.contains(snapshot._TypeHierarchy, 'Defect') && (snapshot.ScheduleState != 'Live')){
+             return 1; 
+         }
+         return 0;
+     },
+     getDerivedLivingDefectsPerNStoryPoints: function(snapshot,index,metrics,seriesData){
+         console.log(index, metrics,seriesData);
+         console.log(seriesData[index].LiveDefects,seriesData[index].DerivedStoryPoints,this.normalizationCoefficient);
+         return seriesData[index].LiveDefects/seriesData[index].DerivedStoryPoints*100;
+     },
+     getDerivedFieldsOnInput: function(){
+         return [{
+             f: this.getDerivedStoryPoints,
+             as: 'StoryPoints'
+         },{
+             f: this.getDerivedLivingDefects,
+             as: 'LivingDefects'
+         }];
+     },
+     getDerivedFieldsAfterSummary: function(){
+         return [{
+             f: this.getDerivedLivingDefectsPerNStoryPoints,
+             as: 'DefectsPerNStoryPoints',
+             display: 'line'
+         }];
+     }
+ });
 /**
  * A link that pops up a version dialog box
  */
@@ -149,42 +211,70 @@ Ext.define('CustomApp', {
     ],
     launch: function() {
         this.down('#message_box').update(this.getContext().getUser());
-        
-        var m_name = 'Defect',
-        m_fields = ['Name','State'];
-        
-        this._loadAStoreWithAPromise(m_name, m_fields).then({
-            scope: this,
-            success: function(store){
-                this.down('#display_box').add({
-                    xtype: 'rallygrid',
-                    store: store,
-                    columnCfgs: m_fields
-                });
+ 
+        var calculator = Ext.create('LiveDefectCalculator',{});
+        var now = new Date();
+        this.down('#display_box').add({
+            xtype: 'rallychart',
+            calculatorType: 'LiveDefectCalculator',
+            storeType: 'Rally.data.lookback.SnapshotStore',
+            storeConfig: this._getStoreConfig(),
+            calculatorConfig: {
+                startDate: Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(now, 'day', -60),true),
+                endDate: Rally.util.DateTime.toIsoString(new Date(),true)
             },
-            failure: function(error_message){
-                alert(error_message);
+            chartConfig: {
+                chart: {
+                    zoomType: 'xy'
+                },
+                title: {
+                    text: 'Live Defects Per Story Points'
+                },
+                xAxis: {
+                    tickmarkPlacement: 'on',
+                    tickInterval: 30,
+                    title: {
+                        text: ''
+                    }
+                },
+                yAxis: [
+                    {
+                        title: {
+                            text: 'Story Points'
+                        }
+                    }
+                ]
             }
         });
     },
-    _loadAStoreWithAPromise: function(model_name, model_fields){
-        var deferred = Ext.create('Deft.Deferred');
-        
-        var defectStore = Ext.create('Rally.data.wsapi.Store', {
-            model: model_name,
-            fetch: model_fields,
-            autoLoad: true,
-            listeners: {
-                load: function(store, records, successful) {
-                    if (successful){
-                        deferred.resolve(store);
-                    } else {
-                        deferred.reject('Failed to load store for model [' + model_name + '] and fields [' + model_fields.join(',') + ']');
-                    }
-                }
-            }
-        });
-        return deferred.promise;
+    _getStoreConfig: function(){
+        return {
+            find: {
+                $and: [{
+                         Children: null,
+                         _ProjectHierarchy: this.getContext().getProject().ObjectID,
+                       },{
+                           $or: [{
+                               _TypeHierarchy: 'HierarchicalRequirement',
+                               __At: 'current',
+                               ScheduleState: 'Live'
+                           },{
+                               _TypeHierarchy: 'Defect',
+                               ScheduleState: {$lt: 'Live'},
+                           }]
+                       }], 
+                 _TypeHierarchy: {$in: ['HierarchicalRequirement','Defect']},
+            },
+            fetch: ['ScheduleState','PlanEstimate','_TypeHierarchy','_ValidTo','_ValidFrom'],
+            hydrate: ['ScheduleState','_TypeHierarchy'],
+            compress: true,
+            sort: {
+                _ValidFrom: 1
+            },
+            context: this.getContext().getDataContext(),
+            limit: Infinity
+        };
+
     }
 });
             

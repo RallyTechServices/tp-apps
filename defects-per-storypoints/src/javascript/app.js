@@ -9,41 +9,69 @@ Ext.define('CustomApp', {
     ],
     launch: function() {
         this.down('#message_box').update(this.getContext().getUser());
-        
-        var m_name = 'Defect',
-        m_fields = ['Name','State'];
-        
-        this._loadAStoreWithAPromise(m_name, m_fields).then({
-            scope: this,
-            success: function(store){
-                this.down('#display_box').add({
-                    xtype: 'rallygrid',
-                    store: store,
-                    columnCfgs: m_fields
-                });
+ 
+        var calculator = Ext.create('LiveDefectCalculator',{});
+        var now = new Date();
+        this.down('#display_box').add({
+            xtype: 'rallychart',
+            calculatorType: 'LiveDefectCalculator',
+            storeType: 'Rally.data.lookback.SnapshotStore',
+            storeConfig: this._getStoreConfig(),
+            calculatorConfig: {
+                startDate: Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(now, 'day', -60),true),
+                endDate: Rally.util.DateTime.toIsoString(new Date(),true)
             },
-            failure: function(error_message){
-                alert(error_message);
+            chartConfig: {
+                chart: {
+                    zoomType: 'xy'
+                },
+                title: {
+                    text: 'Live Defects Per Story Points'
+                },
+                xAxis: {
+                    tickmarkPlacement: 'on',
+                    tickInterval: 30,
+                    title: {
+                        text: ''
+                    }
+                },
+                yAxis: [
+                    {
+                        title: {
+                            text: 'Story Points'
+                        }
+                    }
+                ]
             }
         });
     },
-    _loadAStoreWithAPromise: function(model_name, model_fields){
-        var deferred = Ext.create('Deft.Deferred');
-        
-        var defectStore = Ext.create('Rally.data.wsapi.Store', {
-            model: model_name,
-            fetch: model_fields,
-            autoLoad: true,
-            listeners: {
-                load: function(store, records, successful) {
-                    if (successful){
-                        deferred.resolve(store);
-                    } else {
-                        deferred.reject('Failed to load store for model [' + model_name + '] and fields [' + model_fields.join(',') + ']');
-                    }
-                }
-            }
-        });
-        return deferred.promise;
+    _getStoreConfig: function(){
+        return {
+            find: {
+                $and: [{
+                         Children: null,
+                         _ProjectHierarchy: this.getContext().getProject().ObjectID,
+                       },{
+                           $or: [{
+                               _TypeHierarchy: 'HierarchicalRequirement',
+                               __At: 'current',
+                               ScheduleState: 'Live'
+                           },{
+                               _TypeHierarchy: 'Defect',
+                               ScheduleState: {$lt: 'Live'},
+                           }]
+                       }], 
+                 _TypeHierarchy: {$in: ['HierarchicalRequirement','Defect']},
+            },
+            fetch: ['ScheduleState','PlanEstimate','_TypeHierarchy','_ValidTo','_ValidFrom'],
+            hydrate: ['ScheduleState','_TypeHierarchy'],
+            compress: true,
+            sort: {
+                _ValidFrom: 1
+            },
+            context: this.getContext().getDataContext(),
+            limit: Infinity
+        };
+
     }
 });
