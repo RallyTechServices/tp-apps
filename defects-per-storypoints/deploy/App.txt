@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Defects per Story Points</title>
+    <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
+    <!--  Build Date: Tue Nov 18 2014 08:06:46 GMT-0700 (MST) -->
+    
+    <script type="text/javascript">
+        var APP_BUILD_DATE = "Tue Nov 18 2014 08:06:46 GMT-0700 (MST)";
+        var CHECKSUM = 3010075191;
+    </script>
+    
+    <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function() {
+             
+Ext.define("LiveDefectCalculator", {
+     extend: "Rally.data.lookback.calculator.TimeSeriesCalculator",
+     normalizationCoefficient: 100,
+     runCalculation: function (snapshots) {
+         var calculatorConfig = this._prepareCalculatorConfig(),
+             seriesConfig = this._buildSeriesConfig(calculatorConfig);
+
+         var calculator = this.prepareCalculator(calculatorConfig);
+         calculator.addSnapshots(snapshots, this._getStartDate(snapshots), this._getEndDate(snapshots));
+         
+         
+         return this._transformLumenizeDataToHighchartsSeries(calculator, seriesConfig);
+     },
+     getMetrics: function () {
+         return [
+             {
+                 "field": "LivingDefects",
+                 "as": "LiveDefects",
+                 "display": "line",
+                 "f": "sum"
+             },{
+                 "field": "StoryPoints",
+                 "as": "DerivedStoryPoints",
+                 "display": "line",
+                 "f": "sum"
+             }];
+     },
+     getDerivedStoryPoints: function(snapshot){
+         if (Ext.Array.contains(snapshot._TypeHierarchy, 'HierarchicalRequirement') && (snapshot.ScheduleState == 'Live')){
+             return snapshot.PlanEstimate || 0;
+         }
+         return 0;
+     },
+     getDerivedLivingDefects: function(snapshot){
+         
+         if (Ext.Array.contains(snapshot._TypeHierarchy, 'Defect') && (snapshot.ScheduleState != 'Live')){
+             return 1; 
+         }
+         return 0;
+     },
+     getDerivedLivingDefectsPerNStoryPoints: function(snapshot,index,metrics,seriesData){
+         console.log(index, metrics,seriesData);
+         console.log(seriesData[index].LiveDefects,seriesData[index].DerivedStoryPoints,this.normalizationCoefficient);
+         return seriesData[index].LiveDefects/seriesData[index].DerivedStoryPoints*100;
+     },
+     getDerivedFieldsOnInput: function(){
+         return [{
+             f: this.getDerivedStoryPoints,
+             as: 'StoryPoints'
+         },{
+             f: this.getDerivedLivingDefects,
+             as: 'LivingDefects'
+         }];
+     },
+     getDerivedFieldsAfterSummary: function(){
+         return [{
+             f: this.getDerivedLivingDefectsPerNStoryPoints,
+             as: 'DefectsPerNStoryPoints',
+             display: 'line'
+         }];
+     }
+ });
+/**
+ * A link that pops up a version dialog box
+ */
+
+Ext.define('Rally.technicalservices.InfoLink',{
+    extend: 'Ext.Component',
+    alias: 'widget.tsinfolink',
+    
+    /**
+     * @cfg {String} informationHtml
+     * Additional text to be displayed on the popup dialog (for exmaple,
+     * to add a description of the app's use or functionality)
+     */
+    informationHtml: null,
+    
+    /**
+     * 
+     * cfg {String} title
+     * The title for the dialog box
+     */
+     title: "Build Information",
+    
+    renderTpl: "<div id='{id}-infolinkWrap' class='tsinfolink'>i</div>",
+
+    initComponent: function() {
+        this.callParent(arguments);
+       
+    },
+    
+    onRender: function() {
+        this.callParent(arguments);
+        this.mon(this.el,'click',this.onClick,this);
+    },
+    _generateChecksum: function(string){
+        var chk = 0x12345678,
+            i;
+        string = string.replace(/var CHECKSUM = .*;/,"");
+        string = string.replace(/\s/g,"");  //Remove all whitespace from the string.
+        
+        for (i = 0; i < string.length; i++) {
+            chk += (string.charCodeAt(i) * i);
+        }
+    
+        return chk;
+    },
+    _checkChecksum: function(container) {
+        var me = this;
+        Ext.Ajax.request({
+            url: document.URL,
+            params: {
+                id: 1
+            },
+            success: function (response) {
+                text = response.responseText;
+                if ( CHECKSUM ) {
+                    if ( CHECKSUM !== me._generateChecksum(text) ) {
+                        console.log("Checksums don't match!");
+                        if ( me.dialog ) {
+                            me.dialog.add({xtype:'container',html:'Checksums do not match'});
+                        }
+                    }
+                }
+            }
+        });
+    },
+    onClick: function(e) {
+        var me = this;
+        this._checkChecksum(this);
+        
+        var dialog_items = [];
+        
+        if ( this.informationHtml ) {
+            dialog_items.push({
+                xtype:'container',
+                html: this.informationHtml
+            });
+        }
+                
+        dialog_items.push({
+            xtype:'container',
+            html:"This app was created by the Rally Technical Services Team."
+        });
+        
+        if ( APP_BUILD_DATE ) {
+            dialog_items.push({
+                xtype:'container',
+                html:'Build date/time: ' + APP_BUILD_DATE
+            });
+        }
+        
+        if (this.dialog){this.dialog.destroy();}
+        this.dialog = Ext.create('Rally.ui.dialog.Dialog',{
+            defaults: { padding: 5, margin: 5 },
+            closable: true,
+            draggable: true,
+            title: me.title,
+            items: dialog_items
+        });
+        this.dialog.show();
+    }
+});
+
+/*
+ */
+Ext.define('Rally.technicalservices.Logger',{
+    constructor: function(config){
+        Ext.apply(this,config);
+    },
+    log: function(args){
+        var timestamp = "[ " + Ext.util.Format.date(new Date(), "Y-m-d H:i:s.u") + " ]";
+        //var output_args = arguments;
+        //output_args.unshift( [ "[ " + timestamp + " ]" ] );
+        //output_args = Ext.Array.push(output_args,arguments);
+        
+        var output_args = [];
+        output_args = Ext.Array.push(output_args,[timestamp]);
+        output_args = Ext.Array.push(output_args, Ext.Array.slice(arguments,0));
+
+        window.console && console.log.apply(console,output_args);
+    }
+
+});
+
+Ext.define('CustomApp', {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+    logger: new Rally.technicalservices.Logger(),
+    MIN_DATE_RANGE_IN_DAYS: 15,
+    items: [
+        {xtype:'container',itemId:'date_box',layout: {type:'hbox'}, padding: 10},
+        {xtype:'container',itemId:'display_box'},
+        {xtype:'tsinfolink'}
+    ],
+    launch: function() {
+        Ext.create('LiveDefectCalculator',{});
+        
+        this.down('#date_box').add({
+            xtype: 'rallydatefield',
+            fieldLabel: 'Start Date',
+            itemId: 'start-date-picker',
+            listeners: {
+                scope: this,
+                select: this._updateChart,
+                change: this._updateChart
+            }
+        });
+        
+        this.down('#date_box').add({
+            xtype: 'rallydatefield',
+            fieldLabel: 'End Date',
+            itemId: 'end-date-picker',
+            listeners: {
+                scope: this,
+                select: this._updateChart,
+                change: this._updateChart
+            }
+        });
+        
+        this.down('#start-date-picker').setValue(Rally.util.DateTime.add(new Date(), 'day', -30),true);
+        this.down('#end-date-picker').setValue(new Date(),true);
+        
+    },
+    _validateDateRange: function(newStartDate,newEndDate){
+        this.logger.log('_validateDateRange', newStartDate, newEndDate);
+        
+        var currentStartDate = new Date(), currentEndDate = new Date();
+        if (this.down('#rally-chart')){
+            currentStartDate = this.down('#rally-chart').calculatorConfig.startDate, 
+            currentEndDate = this.down('#rally-chart').calculatorConfig.endDate;
+        }
+        
+        if (newStartDate && newEndDate && (Rally.util.DateTime.getDifference(newEndDate, newStartDate, 'day') > this.MIN_DATE_RANGE_IN_DAYS)){
+            return true;
+        }
+        return false;
+    },
+    _updateChart: function(field, newValue){
+        this.logger.log('_updateChart', newValue,this.down('#end-date-picker').getValue());
+        
+        if (this._validateDateRange(this.down('#start-date-picker').getValue(), this.down('#end-date-picker').getValue())){
+            var newStartDate = Rally.util.DateTime.toIsoString(this.down('#start-date-picker').getValue(), true);
+            var newEndDate = Rally.util.DateTime.toIsoString(this.down('#end-date-picker').getValue(),true); 
+            this._createChart(newStartDate, newEndDate);
+        }
+    },
+    _createChart: function(newStartDate, newEndDate){
+        if (this.down('#rally-chart')){
+            this.down('#rally-chart').destroy();
+        }
+        
+        this.down('#display_box').add({
+            xtype: 'rallychart',
+            itemId: 'rally-chart',
+            calculatorType: 'LiveDefectCalculator',
+            storeType: 'Rally.data.lookback.SnapshotStore',
+            storeConfig: this._getStoreConfig(),
+            calculatorConfig: {
+                startDate: newStartDate, //Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date(), 'day', -60),true),
+                endDate: newEndDate //Rally.util.DateTime.toIsoString(new Date(),true)
+            },
+            chartConfig: {
+                chart: {
+                    zoomType: 'xy'
+                },
+                title: {
+                    text: 'Live Defects Per Story Points'
+                },
+                xAxis: {
+                    tickmarkPlacement: 'on',
+                    tickInterval: 30,
+                    title: {
+                        text: ''
+                    }
+                },
+                yAxis: [
+                    {
+                        title: {
+                            text: 'Story Points'
+                        }
+                    }
+                ]
+            }
+        });
+
+    },
+    _getStoreConfig: function(){
+        return {
+            find: {
+                $and: [{
+                         Children: null,
+                         _ProjectHierarchy: this.getContext().getProject().ObjectID,
+                       },{
+                           $or: [{
+                               _TypeHierarchy: 'HierarchicalRequirement',
+                               __At: 'current',
+                               ScheduleState: 'Live'
+                           },{
+                               _TypeHierarchy: 'Defect',
+                               ScheduleState: {$lt: 'Live'},
+                           }]
+                       }], 
+//                 _TypeHierarchy: {$in: ['HierarchicalRequirement','Defect']},
+            },
+            fetch: ['ScheduleState','PlanEstimate','_TypeHierarchy','_ValidTo','_ValidFrom'],
+            hydrate: ['ScheduleState','_TypeHierarchy'],
+            compress: true,
+            sort: {
+                _ValidFrom: 1
+            },
+            context: this.getContext().getDataContext(),
+            limit: Infinity
+        };
+    }
+});
+            
+               Rally.launchApp('CustomApp', {
+                   name: 'Defects per Story Points'
+               });
+        });
+    </script>
+    
+    <style type="text/css">
+
+.app {
+}
+.tsinfolink {
+    position:absolute;
+    right:0px;
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    text-align: center;
+    color: white;
+    background: #C0C0C0;
+    border-style: solid;
+    border-width: 1px;
+    margin-top: 25px;
+    margin-right: 5px;
+    cursor: pointer;
+}
+    </style>
+
+</head>
+<body></body>
+</html>
