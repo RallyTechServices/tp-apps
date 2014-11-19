@@ -1,6 +1,12 @@
 Ext.define("LiveDefectCalculator", {
      extend: "Rally.data.lookback.calculator.TimeSeriesCalculator",
-     normalizationCoefficient: 100,
+     config: {
+         multiplier: 1
+     },
+     constructor: function(config) {
+         this.initConfig(config);
+         this.callParent(arguments);
+     },
      runCalculation: function (snapshots) {
          var calculatorConfig = this._prepareCalculatorConfig(),
              seriesConfig = this._buildSeriesConfig(calculatorConfig);
@@ -8,14 +14,13 @@ Ext.define("LiveDefectCalculator", {
          var calculator = this.prepareCalculator(calculatorConfig);
          calculator.addSnapshots(snapshots, this._getStartDate(snapshots), this._getEndDate(snapshots));
          
-         
          return this._transformLumenizeDataToHighchartsSeries(calculator, seriesConfig);
      },
      getMetrics: function () {
          return [
              {
-                 "field": "LivingDefects",
-                 "as": "LiveDefects",
+                 "field": "OpenDefects",
+                 "as": "OpenDefects",
                  "display": "line",
                  "f": "sum"
              },{
@@ -39,9 +44,7 @@ Ext.define("LiveDefectCalculator", {
          return 0;
      },
      getDerivedLivingDefectsPerNStoryPoints: function(snapshot,index,metrics,seriesData){
-         console.log(index, metrics,seriesData);
-         console.log(seriesData[index].LiveDefects,seriesData[index].DerivedStoryPoints,this.normalizationCoefficient);
-         return seriesData[index].LiveDefects/seriesData[index].DerivedStoryPoints*100;
+         return seriesData[index].OpenDefects/seriesData[index].DerivedStoryPoints*this.multiplier;
      },
      getDerivedFieldsOnInput: function(){
          return [{
@@ -49,14 +52,15 @@ Ext.define("LiveDefectCalculator", {
              as: 'StoryPoints'
          },{
              f: this.getDerivedLivingDefects,
-             as: 'LivingDefects'
+             as: 'OpenDefects'
          }];
      },
      getDerivedFieldsAfterSummary: function(){
          return [{
              f: this.getDerivedLivingDefectsPerNStoryPoints,
              as: 'DefectsPerNStoryPoints',
-             display: 'line'
+             display: 'line',
+             multiplier: this.multiplier
          }];
      }
  });

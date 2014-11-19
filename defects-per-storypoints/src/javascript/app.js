@@ -8,12 +8,21 @@ Ext.define('CustomApp', {
         {xtype:'container',itemId:'display_box'},
         {xtype:'tsinfolink'}
     ],
+    config: {
+        defaultSettings: {
+            N: 100
+        }
+    },
     launch: function() {
         Ext.create('LiveDefectCalculator',{});
+
         
         this.down('#date_box').add({
             xtype: 'rallydatefield',
             fieldLabel: 'Start Date',
+            labelWidth: 100,
+            labelAlign: 'right',
+            padding: 10,
             itemId: 'start-date-picker',
             listeners: {
                 scope: this,
@@ -25,6 +34,9 @@ Ext.define('CustomApp', {
         this.down('#date_box').add({
             xtype: 'rallydatefield',
             fieldLabel: 'End Date',
+            labelWidth: 100,
+            padding: 10,
+            labelAlign: 'right',
             itemId: 'end-date-picker',
             listeners: {
                 scope: this,
@@ -32,10 +44,27 @@ Ext.define('CustomApp', {
                 change: this._updateChart
             }
         });
-        
+
+        this.down('#date_box').add({
+            xtype: 'rallybutton',
+            text: 'Export',
+            scope: this,
+            itemId: 'export-button',
+            margin: '10 10 10 50',
+            disabled: true,
+            handler: this._exportProcessedData
+        });
+          
         this.down('#start-date-picker').setValue(Rally.util.DateTime.add(new Date(), 'day', -30),true);
         this.down('#end-date-picker').setValue(new Date(),true);
         
+      
+    },
+    _exportProcessedData: function(){
+        this.logger.log('_exportProcessedData');
+        this.down('#export-button').setDisabled(true);
+        //export
+        this.down('#export-button').setDisabled(false);
     },
     _validateDateRange: function(newStartDate,newEndDate){
         this.logger.log('_validateDateRange', newStartDate, newEndDate);
@@ -55,12 +84,15 @@ Ext.define('CustomApp', {
         this.logger.log('_updateChart', newValue,this.down('#end-date-picker').getValue());
         
         if (this._validateDateRange(this.down('#start-date-picker').getValue(), this.down('#end-date-picker').getValue())){
+            this.down('#export-button').setDisabled(true);
             var newStartDate = Rally.util.DateTime.toIsoString(this.down('#start-date-picker').getValue(), true);
             var newEndDate = Rally.util.DateTime.toIsoString(this.down('#end-date-picker').getValue(),true); 
-            this._createChart(newStartDate, newEndDate);
+            var coefficient = Number(this.getSetting('N'));
+
+            this._createChart(newStartDate, newEndDate,coefficient);
         }
     },
-    _createChart: function(newStartDate, newEndDate){
+    _createChart: function(newStartDate, newEndDate, coefficient){
         if (this.down('#rally-chart')){
             this.down('#rally-chart').destroy();
         }
@@ -73,14 +105,21 @@ Ext.define('CustomApp', {
             storeConfig: this._getStoreConfig(),
             calculatorConfig: {
                 startDate: newStartDate, //Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date(), 'day', -60),true),
-                endDate: newEndDate //Rally.util.DateTime.toIsoString(new Date(),true)
+                endDate: newEndDate, //Rally.util.DateTime.toIsoString(new Date(),true)
+                multiplier: coefficient
+            },
+            listeners: {
+                scope: this,
+                chartRendered: function(){
+                    this.down('#export-button').setDisabled(false);
+                }
             },
             chartConfig: {
                 chart: {
                     zoomType: 'xy'
                 },
                 title: {
-                    text: 'Live Defects Per Story Points'
+                    text: 'Live Defects Per ' + this.settings.N.toString() + ' Story Points'
                 },
                 xAxis: {
                     tickmarkPlacement: 'on',
