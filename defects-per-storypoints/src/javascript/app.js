@@ -10,7 +10,8 @@ Ext.define('CustomApp', {
     ],
     config: {
         defaultSettings: {
-            N: 100
+            N: 100,
+            defaultDays: -30
         }
     },
     launch: function() {
@@ -24,11 +25,11 @@ Ext.define('CustomApp', {
             labelAlign: 'right',
             padding: 10,
             itemId: 'start-date-picker',
-            listeners: {
-                scope: this,
-                select: this._updateChart,
-                change: this._updateChart
-            }
+//            listeners: {
+//                scope: this,
+//                select: this._updateChart,
+//                change: this._updateChart
+//            }
         });
         
         this.down('#date_box').add({
@@ -38,32 +39,65 @@ Ext.define('CustomApp', {
             padding: 10,
             labelAlign: 'right',
             itemId: 'end-date-picker',
-            listeners: {
-                scope: this,
-                select: this._updateChart,
-                change: this._updateChart
-            }
+//            listeners: {
+//                scope: this,
+//                select: this._updateChart,
+//                change: this._updateChart
+//            }
         });
 
+        this.down('#date_box').add({
+            xtype: 'rallynumberfield',
+            fieldLabel: 'N',
+            itemId: 'n-number',
+            labelWidth: 100,
+            padding: 10,
+            value: Number(this.getSetting('N')),
+            labelAlign: 'right',
+            minValue: 1,
+            maxValue: 1000
+        });
+        
+        this.down('#date_box').add({
+            xtype: 'rallybutton',
+            text: 'Run',
+            scope: this,
+            itemId: 'run-button',
+            margin: '10 10 10 50',
+            handler: this._updateChart
+        });
+
+        
         this.down('#date_box').add({
             xtype: 'rallybutton',
             text: 'Export',
             scope: this,
             itemId: 'export-button',
-            margin: '10 10 10 50',
+            margin: '10 10 10 10',
             disabled: true,
             handler: this._exportProcessedData
         });
           
-        this.down('#start-date-picker').setValue(Rally.util.DateTime.add(new Date(), 'day', -30),true);
+        this.down('#start-date-picker').setValue(Rally.util.DateTime.add(new Date(), 'day',this.getSetting('defaultDays')),true);
         this.down('#end-date-picker').setValue(new Date(),true);
-        
+        this._updateChart();
       
     },
     _exportProcessedData: function(){
         this.logger.log('_exportProcessedData');
         this.down('#export-button').setDisabled(true);
         //export
+        var fileName = 'data.csv';
+        var data = this.down('#rally-chart').getChartData();
+        
+        console.log(data);
+        var text = Ext.String.format('Series Name,{0}\n', data.categories.join(','));
+        Ext.each(data.series, function(dataset){
+            text += Ext.String.format('{0},{1}\n',dataset.name,dataset.data.join(','));
+        },this);
+
+        Rally.technicalservices.FileUtilities.saveTextAsFile(text,fileName);
+        
         this.down('#export-button').setDisabled(false);
     },
     _validateDateRange: function(newStartDate,newEndDate){
@@ -82,14 +116,16 @@ Ext.define('CustomApp', {
     },
     _updateChart: function(field, newValue){
         this.logger.log('_updateChart', newValue,this.down('#end-date-picker').getValue());
+        this.down('#run-button').setDisabled(true);
         
         if (this._validateDateRange(this.down('#start-date-picker').getValue(), this.down('#end-date-picker').getValue())){
             this.down('#export-button').setDisabled(true);
             var newStartDate = Rally.util.DateTime.toIsoString(this.down('#start-date-picker').getValue(), true);
             var newEndDate = Rally.util.DateTime.toIsoString(this.down('#end-date-picker').getValue(),true); 
-            var coefficient = Number(this.getSetting('N'));
+            var coefficient = this.down('#n-number').getValue(); //Number(this.getSetting('N'));
 
             this._createChart(newStartDate, newEndDate,coefficient);
+            this.down('#run-button').setDisabled(false);
         }
     },
     _createChart: function(newStartDate, newEndDate, coefficient){
@@ -119,7 +155,7 @@ Ext.define('CustomApp', {
                     zoomType: 'xy'
                 },
                 title: {
-                    text: 'Live Defects Per ' + this.settings.N.toString() + ' Story Points'
+                    text: 'Live Defects Per ' + this.down('#n-number').getValue().toString() + ' Story Points'
                 },
                 xAxis: {
                     tickmarkPlacement: 'on',
