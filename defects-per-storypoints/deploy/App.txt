@@ -3,11 +3,11 @@
 <head>
     <title>Defects per Story Points</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Thu Nov 20 2014 10:25:44 GMT-0700 (MST) -->
+    <!--  Build Date: Fri Nov 21 2014 10:41:46 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Thu Nov 20 2014 10:25:44 GMT-0700 (MST)";
-        var CHECKSUM = 5040601110;
+        var APP_BUILD_DATE = "Fri Nov 21 2014 10:41:46 GMT-0700 (MST)";
+        var CHECKSUM = 5159724749;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -332,11 +332,21 @@ Ext.define('CustomApp', {
         var fileName = 'data.csv';
         var data = this.down('#rally-chart').getChartData();
         
-        console.log(data);
-        var text = Ext.String.format('Series Name,{0}\n', data.categories.join(','));
-        Ext.each(data.series, function(dataset){
-            text += Ext.String.format('{0},{1}\n',dataset.name,dataset.data.join(','));
-        },this);
+        var text = 'Date';
+        Ext.each(data.series, function(s){
+            text = text + ',' + s.name;
+        });
+        text = text + '\n';
+        
+        for (var i=0; i<data.categories.length; i++){
+            console.log(data.categories[i]);
+            text +=  Rally.util.DateTime.formatWithDefault(new Date(data.categories[i]),this.getContext()).toString();
+            Ext.each(data.series, function(s){
+                text += ',';
+                text += s.data[i]; 
+            });
+            text += '\n';
+        }
 
         Rally.technicalservices.FileUtilities.saveTextAsFile(text,fileName);
         

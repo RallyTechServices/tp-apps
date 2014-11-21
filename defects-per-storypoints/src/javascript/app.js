@@ -90,11 +90,21 @@ Ext.define('CustomApp', {
         var fileName = 'data.csv';
         var data = this.down('#rally-chart').getChartData();
         
-        console.log(data);
-        var text = Ext.String.format('Series Name,{0}\n', data.categories.join(','));
-        Ext.each(data.series, function(dataset){
-            text += Ext.String.format('{0},{1}\n',dataset.name,dataset.data.join(','));
-        },this);
+        var text = 'Date';
+        Ext.each(data.series, function(s){
+            text = text + ',' + s.name;
+        });
+        text = text + '\n';
+        
+        for (var i=0; i<data.categories.length; i++){
+            console.log(data.categories[i]);
+            text +=  Rally.util.DateTime.formatWithDefault(new Date(data.categories[i]),this.getContext()).toString();
+            Ext.each(data.series, function(s){
+                text += ',';
+                text += s.data[i]; 
+            });
+            text += '\n';
+        }
 
         Rally.technicalservices.FileUtilities.saveTextAsFile(text,fileName);
         
