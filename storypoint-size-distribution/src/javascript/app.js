@@ -41,7 +41,7 @@ Ext.define('CustomApp', {
             calculatorType: 'StorypointDistributionCalculator',
             calculatorConfig: {
                 max: newValue,
-                useFibinacci: false
+                useFibinacci: true
             },
             storeType: 'Rally.data.lookback.SnapshotStore',
             storeConfig: {

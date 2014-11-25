@@ -3,11 +3,11 @@
 <head>
     <title>StoryPoint Size Distribution Chart</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Tue Nov 25 2014 10:32:08 GMT-0600 (CST) -->
+    <!--  Build Date: Tue Nov 25 2014 10:34:20 GMT-0600 (CST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Nov 25 2014 10:32:08 GMT-0600 (CST)";
-        var CHECKSUM = 2418285454;
+        var APP_BUILD_DATE = "Tue Nov 25 2014 10:34:20 GMT-0600 (CST)";
+        var CHECKSUM = 2417758466;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -269,7 +269,7 @@ Ext.define('CustomApp', {
             calculatorType: 'StorypointDistributionCalculator',
             calculatorConfig: {
                 max: newValue,
-                useFibinacci: false
+                useFibinacci: true
             },
             storeType: 'Rally.data.lookback.SnapshotStore',
             storeConfig: {
