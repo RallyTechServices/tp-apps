@@ -3,11 +3,11 @@
 <head>
     <title>StoryPoint Size Distribution Chart</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Mon Nov 24 2014 19:45:33 GMT-0600 (CST) -->
+    <!--  Build Date: Tue Nov 25 2014 09:03:38 GMT-0600 (CST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Mon Nov 24 2014 19:45:33 GMT-0600 (CST)";
-        var CHECKSUM = 2430867375;
+        var APP_BUILD_DATE = "Tue Nov 25 2014 09:03:38 GMT-0600 (CST)";
+        var CHECKSUM = 2425233820;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -39,6 +39,7 @@ Ext.define("StorypointDistributionCalculator", {
          this.max_story_size = 0;
          this.numStoriesOutOfCompliance = 0;
          var project_counter = 0;
+         
          var buckets = this._getChartBuckets();
          Ext.each(snapshots, function(d){
              var bucket_index = this._getBucketIndex(buckets, d.PlanEstimate);
@@ -56,7 +57,6 @@ Ext.define("StorypointDistributionCalculator", {
          Ext.each(Object.keys(series_hash), function(series){
              series_array.push({name: series, data: series_hash[series]});
          },this);
-         console.log('summary',this.numStoriesOutOfCompliance, this.max_story_size);
          
          return {
              series: series_array,
@@ -73,12 +73,13 @@ Ext.define("StorypointDistributionCalculator", {
          return arr;
      },
      _getBucketIndex: function(buckets, number_to_bucket){
+         if (!Ext.Array.contains([0,1,2,3,5,8,13,20,40,100], number_to_bucket)){
+             console.log('outofcompliance',number_to_bucket);
+             this.numStoriesOutOfCompliance++;
+         }
          var num = Math.round(Number(number_to_bucket));
          for (var i=0; i<buckets.length; i++){
              if (num <= buckets[i]){
-                 if (num != buckets[i]){
-                     this.numStoriesOutOfCompliance++;
-                 }
                  return i;
              }
          }
@@ -309,9 +310,6 @@ Ext.define('CustomApp', {
                     title: {
                     text: 'Number of Stories'
                 }
-            },
-            subtitle: {
-                text: 'subtitle'
             },
             tooltip: {
                 headerFormat: '<span style="font-size:10px">{point.key}</span><table>',
