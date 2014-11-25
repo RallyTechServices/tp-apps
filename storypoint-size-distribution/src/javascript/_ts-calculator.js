@@ -60,7 +60,7 @@ Ext.define("StorypointDistributionCalculator", {
              console.log('outofcompliance',number_to_bucket);
              this.numStoriesOutOfCompliance++;
          }
-         var num = Math.round(Number(number_to_bucket));
+         var num = Number(number_to_bucket);
          for (var i=0; i<buckets.length; i++){
              if (num <= buckets[i]){
                  return i;
