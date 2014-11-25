@@ -97,7 +97,6 @@ Ext.define('CustomApp', {
         text = text + '\n';
         
         for (var i=0; i<data.categories.length; i++){
-            console.log(data.categories[i]);
             text +=  Rally.util.DateTime.formatWithDefault(new Date(data.categories[i]),this.getContext()).toString();
             Ext.each(data.series, function(s){
                 text += ',';

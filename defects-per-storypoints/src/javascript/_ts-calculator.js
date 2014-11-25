@@ -56,6 +56,7 @@ Ext.define("LiveDefectCalculator", {
          }];
      },
      getDerivedFieldsAfterSummary: function(){
+         var field_name = Ext.String.format('DefectsPer{0}StoryPoints', this.multiplier);
          return [{
              f: this.getDerivedLivingDefectsPerNStoryPoints,
              as: 'DefectsPerNStoryPoints',

@@ -3,96 +3,66 @@ Ext.define('CustomApp', {
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
     items: [
-        {xtype:'container',itemId:'message_box',tpl:'Hello, <tpl>{_refObjectName}</tpl>'},
+        {xtype:'container',itemId:'selection_box'},
         {xtype:'container',itemId:'display_box'},
         {xtype:'tsinfolink'}
     ],
-    config: {
-        defaultSettings: {
-            maxBucket: 21
-        }
-    },
+    title: 'Storypoint Distribution',
     launch: function() {
-        console.log(this._getChartBuckets(21));
-        //        this.down('#display_box').add({
-//            xtype: 'rallychart',
-//            loadMask: false,
-//            chartData: this._getChartData(),
-//            chartConfig: this._getChartConfig()
-//        });
-    },
 
-    /**
-     * Generate x axis categories and y axis series data for the chart
-     */
-    _getChartData: function() {
-        var max = Number(this.getSetting('maxBucket'));  
-        return {
-            categories: this._getChartBuckets(max),
-            series: [
-                {
-                    name: 'Tokyo',
-                    data: [49.9, 71.5, 106.4, 129.2, 144.0, 176.0, 135.6, 148.5, 216.4, 194.1, 95.6, 54.4]
-
-                },
-                {
-                    name: 'New York',
-                    data: [83.6, 78.8, 98.5, 93.4, 106.0, 84.5, 105.0, 104.3, 91.2, 83.5, 106.6, 92.3]
-
-                },
-                {
-                    name: 'London',
-                    data: [48.9, 38.8, 39.3, 41.4, 47.0, 48.3, 59.0, 59.6, 52.4, 65.2, 59.3, 51.2]
-
-                },
-                {
-                    name: 'Berlin',
-                    data: [42.4, 33.2, 34.5, 39.7, 52.6, 75.5, 57.4, 60.4, 47.6, 39.1, 46.8, 51.1]
-
-                }
-            ]
-        };
-    },
-    _getChartSeries: function(){
-        //Series is an array of hashes that have StateName: Number of Stories that are bucketed in the fibinacci number on the x axis
-        this._getRawData().then({
-            scope:this,
-            success: function(data){
-                
-            },
-            failure: function(error, success){
-                
-            }
+        this.down('#display_box').add({
+            xtype: 'container',
+            itemId: 'chart-stats',
+            tpl: 'Max Story Size: <tpl>{maxStorySize}<br>Number of Stories out of compliance: {numStoriesOutOfCompliance}</tpl>'
         });
-        //bucket the data
+
+        var cb = this.down('#selection_box').add({
+           xtype: 'rallycombobox',
+           fieldLabel: 'Max Bucket',
+           store: [20,40,100],
+           listeners: {
+               scope: this,
+               change: this._updateChart
+           }
+       }); 
+       cb.setValue(20);
+       
     },
-    _getChartBuckets: function(max){
-        var categories = [];
-        var x=0;
-        for(i=0,j=1; x<max;i=j,j=x){
-            x=i+j;
-            categories.push(x);
-        }        
-        return categories;
-    },
-    _getRawData: function(){
-        var deferred = Ext.create('Deft.Deferred');
+    _updateChart: function(cb, newValue){
+        if (this.down('#rally-chart')){
+            this.down('#rally-chart').destroy();
+        }
         
-        Ext.create('Rally.data.wsapi.Store', {
-            model: 'User Story',
-            autoLoad: true, 
-            listeners: {
-                load: function(store, data, success) {
-                    if (success) {
-                        deferred.resolve(data);
-                    } else {
-                        deferred.reject('Error loading story data', success);
-                    }
-                }
+        this.down('#display_box').add({
+            xtype: 'rallychart',
+            itemId: 'rally-chart',
+            loadMask: false,
+            chartConfig: this._getChartConfig(),
+            calculatorType: 'StorypointDistributionCalculator',
+            calculatorConfig: {
+                max: newValue,
+                useFibinacci: true
             },
-            fetch: ['Name', 'ScheduleState','PlanEstimate'],
-        });
-        return deferred; 
+            storeType: 'Rally.data.lookback.SnapshotStore',
+            storeConfig: {
+                find: {
+                    _TypeHierarchy: 'HierarchicalRequirement',
+                    Children:null,
+                    __At: "current",
+                    _ProjectHierarchy: this.getContext().getProject().ObjectID
+               },
+               fetch: ['ScheduleState', 'PlanEstimate'],
+               hydrate: ['ScheduleState']
+            },
+            listeners: {
+                scope: this,
+                chartRendered: function(chart){
+                    console.log(chart.getChart());
+                    this.down('#chart-stats').update(chart.chartData)
+                }
+            }
+       });
+
     },
     _getChartConfig: function() {
         return {
@@ -100,23 +70,26 @@ Ext.define('CustomApp', {
                 type: 'column'
             },
             title: {
-                text: 'Monthly Average Rainfall'
-            },
-            subtitle: {
-                text: 'Source: WorldClimate.com'
+                text: this.title
             },
             xAxis: {
+                title: {
+                    text: 'PlanEstimate'
+                }
             },
             yAxis: {
                 min: 0,
                     title: {
-                    text: 'Rainfall (mm)'
+                    text: 'Number of Stories'
                 }
+            },
+            subtitle: {
+                text: 'subtitle'
             },
             tooltip: {
                 headerFormat: '<span style="font-size:10px">{point.key}</span><table>',
                     pointFormat: '<tr><td style="color:{series.color};padding:0">{series.name}: </td>' +
-                    '<td style="padding:0"><b>{point.y:.1f} mm</b></td></tr>',
+                    '<td style="padding:0"><b>{point.y:0f} stories</b></td></tr>',
                     footerFormat: '</table>',
                     shared: true,
                     useHTML: true
@@ -124,7 +97,8 @@ Ext.define('CustomApp', {
             plotOptions: {
                 column: {
                     pointPadding: 0.2,
-                        borderWidth: 0
+                        borderWidth: 0,
+                        stacking: 'normal'
                 }
             }
         };
