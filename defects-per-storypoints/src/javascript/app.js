@@ -8,34 +8,106 @@ Ext.define('CustomApp', {
         {xtype:'container',itemId:'display_box'},
         {xtype:'tsinfolink'}
     ],
+    config: {
+        defaultSettings: {
+            N: 100,
+            defaultDays: -30
+        }
+    },
     launch: function() {
         Ext.create('LiveDefectCalculator',{});
+
         
         this.down('#date_box').add({
             xtype: 'rallydatefield',
             fieldLabel: 'Start Date',
+            labelWidth: 100,
+            labelAlign: 'right',
+            padding: 10,
             itemId: 'start-date-picker',
-            listeners: {
-                scope: this,
-                select: this._updateChart,
-                change: this._updateChart
-            }
+//            listeners: {
+//                scope: this,
+//                select: this._updateChart,
+//                change: this._updateChart
+//            }
         });
         
         this.down('#date_box').add({
             xtype: 'rallydatefield',
             fieldLabel: 'End Date',
+            labelWidth: 100,
+            padding: 10,
+            labelAlign: 'right',
             itemId: 'end-date-picker',
-            listeners: {
-                scope: this,
-                select: this._updateChart,
-                change: this._updateChart
-            }
+//            listeners: {
+//                scope: this,
+//                select: this._updateChart,
+//                change: this._updateChart
+//            }
+        });
+
+        this.down('#date_box').add({
+            xtype: 'rallynumberfield',
+            fieldLabel: 'N',
+            itemId: 'n-number',
+            labelWidth: 100,
+            padding: 10,
+            value: Number(this.getSetting('N')),
+            labelAlign: 'right',
+            minValue: 1,
+            maxValue: 1000
         });
         
-        this.down('#start-date-picker').setValue(Rally.util.DateTime.add(new Date(), 'day', -30),true);
-        this.down('#end-date-picker').setValue(new Date(),true);
+        this.down('#date_box').add({
+            xtype: 'rallybutton',
+            text: 'Run',
+            scope: this,
+            itemId: 'run-button',
+            margin: '10 10 10 50',
+            handler: this._updateChart
+        });
+
         
+        this.down('#date_box').add({
+            xtype: 'rallybutton',
+            text: 'Export',
+            scope: this,
+            itemId: 'export-button',
+            margin: '10 10 10 10',
+            disabled: true,
+            handler: this._exportProcessedData
+        });
+          
+        this.down('#start-date-picker').setValue(Rally.util.DateTime.add(new Date(), 'day',this.getSetting('defaultDays')),true);
+        this.down('#end-date-picker').setValue(new Date(),true);
+        this._updateChart();
+      
+    },
+    _exportProcessedData: function(){
+        this.logger.log('_exportProcessedData');
+        this.down('#export-button').setDisabled(true);
+        //export
+        var fileName = 'data.csv';
+        var data = this.down('#rally-chart').getChartData();
+        
+        var text = 'Date';
+        Ext.each(data.series, function(s){
+            text = text + ',' + s.name;
+        });
+        text = text + '\n';
+        
+        for (var i=0; i<data.categories.length; i++){
+            text +=  Rally.util.DateTime.formatWithDefault(new Date(data.categories[i]),this.getContext()).toString();
+            Ext.each(data.series, function(s){
+                text += ',';
+                text += s.data[i]; 
+            });
+            text += '\n';
+        }
+
+        Rally.technicalservices.FileUtilities.saveTextAsFile(text,fileName);
+        
+        this.down('#export-button').setDisabled(false);
     },
     _validateDateRange: function(newStartDate,newEndDate){
         this.logger.log('_validateDateRange', newStartDate, newEndDate);
@@ -53,14 +125,19 @@ Ext.define('CustomApp', {
     },
     _updateChart: function(field, newValue){
         this.logger.log('_updateChart', newValue,this.down('#end-date-picker').getValue());
+        this.down('#run-button').setDisabled(true);
         
         if (this._validateDateRange(this.down('#start-date-picker').getValue(), this.down('#end-date-picker').getValue())){
+            this.down('#export-button').setDisabled(true);
             var newStartDate = Rally.util.DateTime.toIsoString(this.down('#start-date-picker').getValue(), true);
             var newEndDate = Rally.util.DateTime.toIsoString(this.down('#end-date-picker').getValue(),true); 
-            this._createChart(newStartDate, newEndDate);
+            var coefficient = this.down('#n-number').getValue(); //Number(this.getSetting('N'));
+
+            this._createChart(newStartDate, newEndDate,coefficient);
+            this.down('#run-button').setDisabled(false);
         }
     },
-    _createChart: function(newStartDate, newEndDate){
+    _createChart: function(newStartDate, newEndDate, coefficient){
         if (this.down('#rally-chart')){
             this.down('#rally-chart').destroy();
         }
@@ -73,14 +150,21 @@ Ext.define('CustomApp', {
             storeConfig: this._getStoreConfig(),
             calculatorConfig: {
                 startDate: newStartDate, //Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date(), 'day', -60),true),
-                endDate: newEndDate //Rally.util.DateTime.toIsoString(new Date(),true)
+                endDate: newEndDate, //Rally.util.DateTime.toIsoString(new Date(),true)
+                multiplier: coefficient
+            },
+            listeners: {
+                scope: this,
+                chartRendered: function(){
+                    this.down('#export-button').setDisabled(false);
+                }
             },
             chartConfig: {
                 chart: {
                     zoomType: 'xy'
                 },
                 title: {
-                    text: 'Live Defects Per Story Points'
+                    text: 'Live Defects Per ' + this.down('#n-number').getValue().toString() + ' Story Points'
                 },
                 xAxis: {
                     tickmarkPlacement: 'on',

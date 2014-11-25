@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>StoryPoint Size Distribution Chart</title>
+    <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
+    <!--  Build Date: Mon Nov 24 2014 19:45:33 GMT-0600 (CST) -->
+    
+    <script type="text/javascript">
+        var APP_BUILD_DATE = "Mon Nov 24 2014 19:45:33 GMT-0600 (CST)";
+        var CHECKSUM = 2430867375;
+    </script>
+    
+    <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function() {
+             
+Ext.define("StorypointDistributionCalculator", {
+     extend: "Rally.data.lookback.calculator.BaseCalculator",
+     numStoriesOutOfCompliance: 0,
+     config: {
+         max: 21,
+         useFibinacci: true                       
+     },
+     constructor: function (config) {
+         this.mergeConfig(config);
+         this.lumenize = Rally.data.lookback.Lumenize;
+     },
+    prepareChartData: function (store) {
+         var snapshots = [];
+         store.each(function (record) {
+             snapshots.push(record.raw);
+         });
+
+         return this.runCalculation(snapshots);
+     },
+     runCalculation: function(snapshots) {
+         var series_hash = {};
+         this.max_story_size = 0;
+         this.numStoriesOutOfCompliance = 0;
+         var project_counter = 0;
+         var buckets = this._getChartBuckets();
+         Ext.each(snapshots, function(d){
+             var bucket_index = this._getBucketIndex(buckets, d.PlanEstimate);
+             if (Number(d.PlanEstimate) > this.max_story_size){
+                 this.max_story_size = d.PlanEstimate; 
+             }
+             if (series_hash[d.ScheduleState]==undefined){
+                 series_hash[d.ScheduleState]=this._initializeSeriesArray(buckets);
+             }
+             series_hash[d.ScheduleState][bucket_index] += 1;
+         },this);
+
+         var series_array = [];
+
+         Ext.each(Object.keys(series_hash), function(series){
+             series_array.push({name: series, data: series_hash[series]});
+         },this);
+         console.log('summary',this.numStoriesOutOfCompliance, this.max_story_size);
+         
+         return {
+             series: series_array,
+             categories: buckets,
+             maxStorySize: this.max_story_size,
+             numStoriesOutOfCompliance: this.numStoriesOutOfCompliance
+         };
+     },
+     _initializeSeriesArray: function(buckets){
+         var arr = [];
+         for (var i=0; i<buckets.length; i++){
+             arr[i] =0;
+         }
+         return arr;
+     },
+     _getBucketIndex: function(buckets, number_to_bucket){
+         var num = Math.round(Number(number_to_bucket));
+         for (var i=0; i<buckets.length; i++){
+             if (num <= buckets[i]){
+                 if (num != buckets[i]){
+                     this.numStoriesOutOfCompliance++;
+                 }
+                 return i;
+             }
+         }
+         return i-1;
+     },
+     _getChartBuckets: function(){
+         var categories = [];
+         if (this.useFibinacci){
+             categories = [0,1,2,3,5,8,13,20];
+             if (this.max > 20) {
+                 categories.push(40);
+                 if (this.max > 40){
+                     categories.push(100);
+                 }
+             }
+         } else {
+             for(i=0; i<this.max;i++){
+                 categories.push(i);
+             }     
+         }
+         return categories;
+     } 
+});
+/**
+ * A link that pops up a version dialog box
+ */
+
+Ext.define('Rally.technicalservices.InfoLink',{
+    extend: 'Ext.Component',
+    alias: 'widget.tsinfolink',
+    
+    /**
+     * @cfg {String} informationHtml
+     * Additional text to be displayed on the popup dialog (for exmaple,
+     * to add a description of the app's use or functionality)
+     */
+    informationHtml: null,
+    
+    /**
+     * 
+     * cfg {String} title
+     * The title for the dialog box
+     */
+     title: "Build Information",
+    
+    renderTpl: "<div id='{id}-infolinkWrap' class='tsinfolink'>i</div>",
+
+    initComponent: function() {
+        this.callParent(arguments);
+       
+    },
+    
+    onRender: function() {
+        this.callParent(arguments);
+        this.mon(this.el,'click',this.onClick,this);
+    },
+    _generateChecksum: function(string){
+        var chk = 0x12345678,
+            i;
+        string = string.replace(/var CHECKSUM = .*;/,"");
+        string = string.replace(/\s/g,"");  //Remove all whitespace from the string.
+        
+        for (i = 0; i < string.length; i++) {
+            chk += (string.charCodeAt(i) * i);
+        }
+    
+        return chk;
+    },
+    _checkChecksum: function(container) {
+        var me = this;
+        Ext.Ajax.request({
+            url: document.URL,
+            params: {
+                id: 1
+            },
+            success: function (response) {
+                text = response.responseText;
+                if ( CHECKSUM ) {
+                    if ( CHECKSUM !== me._generateChecksum(text) ) {
+                        console.log("Checksums don't match!");
+                        if ( me.dialog ) {
+                            me.dialog.add({xtype:'container',html:'Checksums do not match'});
+                        }
+                    }
+                }
+            }
+        });
+    },
+    onClick: function(e) {
+        var me = this;
+        this._checkChecksum(this);
+        
+        var dialog_items = [];
+        
+        if ( this.informationHtml ) {
+            dialog_items.push({
+                xtype:'container',
+                html: this.informationHtml
+            });
+        }
+                
+        dialog_items.push({
+            xtype:'container',
+            html:"This app was created by the Rally Technical Services Team."
+        });
+        
+        if ( APP_BUILD_DATE ) {
+            dialog_items.push({
+                xtype:'container',
+                html:'Build date/time: ' + APP_BUILD_DATE
+            });
+        }
+        
+        if (this.dialog){this.dialog.destroy();}
+        this.dialog = Ext.create('Rally.ui.dialog.Dialog',{
+            defaults: { padding: 5, margin: 5 },
+            closable: true,
+            draggable: true,
+            title: me.title,
+            items: dialog_items
+        });
+        this.dialog.show();
+    }
+});
+
+/*
+ */
+Ext.define('Rally.technicalservices.Logger',{
+    constructor: function(config){
+        Ext.apply(this,config);
+    },
+    log: function(args){
+        var timestamp = "[ " + Ext.util.Format.date(new Date(), "Y-m-d H:i:s.u") + " ]";
+        //var output_args = arguments;
+        //output_args.unshift( [ "[ " + timestamp + " ]" ] );
+        //output_args = Ext.Array.push(output_args,arguments);
+        
+        var output_args = [];
+        output_args = Ext.Array.push(output_args,[timestamp]);
+        output_args = Ext.Array.push(output_args, Ext.Array.slice(arguments,0));
+
+        window.console && console.log.apply(console,output_args);
+    }
+
+});
+
+Ext.define('CustomApp', {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+    logger: new Rally.technicalservices.Logger(),
+    items: [
+        {xtype:'container',itemId:'selection_box'},
+        {xtype:'container',itemId:'display_box'},
+        {xtype:'tsinfolink'}
+    ],
+    title: 'Storypoint Distribution',
+    launch: function() {
+
+        this.down('#display_box').add({
+            xtype: 'container',
+            itemId: 'chart-stats',
+            tpl: 'Max Story Size: <tpl>{maxStorySize}<br>Number of Stories out of compliance: {numStoriesOutOfCompliance}</tpl>'
+        });
+
+        var cb = this.down('#selection_box').add({
+           xtype: 'rallycombobox',
+           fieldLabel: 'Max Bucket',
+           store: [20,40,100],
+           listeners: {
+               scope: this,
+               change: this._updateChart
+           }
+       }); 
+       cb.setValue(20);
+       
+    },
+    _updateChart: function(cb, newValue){
+        if (this.down('#rally-chart')){
+            this.down('#rally-chart').destroy();
+        }
+        
+        this.down('#display_box').add({
+            xtype: 'rallychart',
+            itemId: 'rally-chart',
+            loadMask: false,
+            chartConfig: this._getChartConfig(),
+            calculatorType: 'StorypointDistributionCalculator',
+            calculatorConfig: {
+                max: newValue,
+                useFibinacci: true
+            },
+            storeType: 'Rally.data.lookback.SnapshotStore',
+            storeConfig: {
+                find: {
+                    _TypeHierarchy: 'HierarchicalRequirement',
+                    Children:null,
+                    __At: "current",
+                    _ProjectHierarchy: this.getContext().getProject().ObjectID
+               },
+               fetch: ['ScheduleState', 'PlanEstimate'],
+               hydrate: ['ScheduleState']
+            },
+            listeners: {
+                scope: this,
+                chartRendered: function(chart){
+                    console.log(chart.getChart());
+                    this.down('#chart-stats').update(chart.chartData)
+                }
+            }
+       });
+
+    },
+    _getChartConfig: function() {
+        return {
+            chart: {
+                type: 'column'
+            },
+            title: {
+                text: this.title
+            },
+            xAxis: {
+                title: {
+                    text: 'PlanEstimate'
+                }
+            },
+            yAxis: {
+                min: 0,
+                    title: {
+                    text: 'Number of Stories'
+                }
+            },
+            subtitle: {
+                text: 'subtitle'
+            },
+            tooltip: {
+                headerFormat: '<span style="font-size:10px">{point.key}</span><table>',
+                    pointFormat: '<tr><td style="color:{series.color};padding:0">{series.name}: </td>' +
+                    '<td style="padding:0"><b>{point.y:0f} stories</b></td></tr>',
+                    footerFormat: '</table>',
+                    shared: true,
+                    useHTML: true
+            },
+            plotOptions: {
+                column: {
+                    pointPadding: 0.2,
+                        borderWidth: 0,
+                        stacking: 'normal'
+                }
+            }
+        };
+    }
+});
+            
+               Rally.launchApp('CustomApp', {
+                   name: 'StoryPoint Size Distribution Chart'
+               });
+        });
+    </script>
+    
+    <style type="text/css">
+
+.app {
+}
+.tsinfolink {
+    position:absolute;
+    right:0px;
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    text-align: center;
+    color: white;
+    background: #C0C0C0;
+    border-style: solid;
+    border-width: 1px;
+    margin-top: 25px;
+    margin-right: 5px;
+    cursor: pointer;
+}
+    </style>
+
+</head>
+<body></body>
+</html>

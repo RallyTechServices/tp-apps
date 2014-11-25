@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Defects per Story Points</title>
+    <title>StoryPoint Size Distribution Chart</title>
     <!--  (c) 2013 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Fri Nov 21 2014 10:41:46 GMT-0700 (MST) -->
+    <!--  Build Date: Mon Nov 24 2014 19:45:33 GMT-0600 (CST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Fri Nov 21 2014 10:41:46 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Mon Nov 24 2014 19:45:33 GMT-0600 (CST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -17,7 +17,7 @@
             
             
                Rally.launchApp('CustomApp', {
-                   name: 'Defects per Story Points'
+                   name: 'StoryPoint Size Distribution Chart'
                });
         });
     </script>
