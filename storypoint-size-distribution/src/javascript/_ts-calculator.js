@@ -22,6 +22,7 @@ Ext.define("StorypointDistributionCalculator", {
          this.max_story_size = 0;
          this.numStoriesOutOfCompliance = 0;
          var project_counter = 0;
+         
          var buckets = this._getChartBuckets();
          Ext.each(snapshots, function(d){
              var bucket_index = this._getBucketIndex(buckets, d.PlanEstimate);
@@ -39,7 +40,6 @@ Ext.define("StorypointDistributionCalculator", {
          Ext.each(Object.keys(series_hash), function(series){
              series_array.push({name: series, data: series_hash[series]});
          },this);
-         console.log('summary',this.numStoriesOutOfCompliance, this.max_story_size);
          
          return {
              series: series_array,
@@ -56,12 +56,13 @@ Ext.define("StorypointDistributionCalculator", {
          return arr;
      },
      _getBucketIndex: function(buckets, number_to_bucket){
-         var num = Math.round(Number(number_to_bucket));
+         if (!Ext.Array.contains([0,1,2,3,5,8,13,20,40,100], number_to_bucket)){
+             console.log('outofcompliance',number_to_bucket);
+             this.numStoriesOutOfCompliance++;
+         }
+         var num = Number(number_to_bucket);
          for (var i=0; i<buckets.length; i++){
              if (num <= buckets[i]){
-                 if (num != buckets[i]){
-                     this.numStoriesOutOfCompliance++;
-                 }
                  return i;
              }
          }

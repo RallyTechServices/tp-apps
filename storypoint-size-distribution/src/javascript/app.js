@@ -83,9 +83,6 @@ Ext.define('CustomApp', {
                     text: 'Number of Stories'
                 }
             },
-            subtitle: {
-                text: 'subtitle'
-            },
             tooltip: {
                 headerFormat: '<span style="font-size:10px">{point.key}</span><table>',
                     pointFormat: '<tr><td style="color:{series.color};padding:0">{series.name}: </td>' +
