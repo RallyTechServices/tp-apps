@@ -15,3 +15,11 @@
     margin-right: 5px;
     cursor: pointer;
 }
+.ERROR {
+    color: red;
+    font-family: NotoSans, Helvetica, Arial;
+}
+.SAVED {
+    color: green;
+    font-family: NotoSans, Helvetica, Arial;
+}

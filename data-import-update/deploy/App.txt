@@ -3,11 +3,11 @@
 <head>
     <title>Data Import Update</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Tue Nov 25 2014 15:42:57 GMT-0600 (CST) -->
+    <!--  Build Date: Mon Dec 01 2014 11:08:05 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Nov 25 2014 15:42:57 GMT-0600 (CST)";
-        var CHECKSUM = 2032608189;
+        var APP_BUILD_DATE = "Mon Dec 01 2014 11:08:05 GMT-0700 (MST)";
+        var CHECKSUM = 2951811700;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -136,6 +136,77 @@ Ext.define('Rally.technicalservices.Logger',{
         window.console && console.log.apply(console,output_args);
     }
 
+});
+
+Ext.define('Rally.technicalservices.FileUtilities', {
+    singleton: true,
+    logger: new Rally.technicalservices.Logger(),
+    
+    saveTextAsFile: function(textToWrite, fileName)
+    {
+        var textFileAsBlob = new Blob([textToWrite], {type:'text/plain'});
+        var fileNameToSaveAs = fileName;
+
+        var downloadLink = document.createElement("a");
+        downloadLink.download = fileNameToSaveAs;
+        downloadLink.innerHTML = "Download File";
+        if (window.webkitURL != null)
+        {
+            // Chrome allows the link to be clicked
+            // without actually adding it to the DOM.
+            downloadLink.href = window.webkitURL.createObjectURL(textFileAsBlob);
+        }
+        else
+        {
+            // Firefox requires the link to be added to the DOM
+            // before it can be clicked.
+            downloadLink.href = window.URL.createObjectURL(textFileAsBlob);
+            downloadLink.onclick = destroyClickedElement;
+            downloadLink.style.display = "none";
+            document.body.appendChild(downloadLink);
+        }
+        downloadLink.click();
+    },
+    
+    destroyClickedElement: function(event)
+    {
+        document.body.removeChild(event.target);
+    },
+    getFileToLoad: function(){
+        Ext.create('Ext.form.Panel', {
+            title: 'Upload a Photo',
+            width: 400,
+            bodyPadding: 10,
+            frame: true,
+            renderTo: Ext.getBody(),
+            items: [{
+                xtype: 'filefield',
+                name: 'photo',
+                fieldLabel: 'Photo',
+                labelWidth: 50,
+                msgTarget: 'side',
+                allowBlank: false,
+                anchor: '100%',
+                buttonText: 'Select Photo...'
+            }],
+
+            buttons: [{
+                text: 'Upload',
+                handler: function() {
+                    var form = this.up('form').getForm();
+                    if(form.isValid()){
+                        form.submit({
+                            url: 'photo-upload.php',
+                            waitMsg: 'Uploading your photo...',
+                            success: function(fp, o) {
+                                Ext.Msg.alert('Success', 'Your photo "' + o.result.file + '" has been uploaded.');
+                            }
+                        });
+                    }
+                }
+            }]
+        });        
+    }
 });
 
 Ext.define('CustomApp', {

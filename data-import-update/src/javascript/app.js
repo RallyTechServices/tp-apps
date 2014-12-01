@@ -18,48 +18,82 @@ Ext.define('CustomApp', {
         });
         
         this.down('#selection_box').add({
-            xtype: 'rallybutton',
-            text: 'Import...',
+            xtype: 'filefield',
+            fieldLabel: 'Import File',
+            itemId: 'file-import',
+            labelWidth: 100,
+            labelAlign: 'right',
+            msgTarget: 'side',
+            allowBlank: false,
             margin: 10,
-            scope: this,
-            handler: this._startImport
-        });
+            buttonText: 'Import...',
+            listeners: {
+                scope: this,
+                change: this._uploadFile
+            }
+        });        
 
         this.down('#selection_box').add({
             xtype: 'rallybutton',
             text: 'Save',
             itemId: 'save-button',
-            margin: 10,
+            margin: '10 10 10 100',
             scope: this,
             handler: this._saveUpdates,
             disabled: true
         });    
     },
-    _startImport: function(){
-        this.logger.log('_startImport');
+    _uploadFile: function(fld, val){
+        var newValue = val.replace(/C:\\fakepath\\/g, '');
+        fld.setRawValue(newValue);
+
+        var upload_file = document.getElementById(fld.fileInputEl.id).files[0].slice();
+       var me = this; 
+        var reader = new FileReader();
+        reader.addEventListener("loadend", function() {
+           // reader.result contains the contents of blob as a typed array
+            me._startImport(reader.result);
+        });
+        reader.readAsText(upload_file);
+    },
+    _getImportedData: function(textData){
+        this.logger.log('_getImportedData',textData);
+        var this_data = {};
+        
+        //Validate FormattedID field exists
+        //Vaidate other fields, values and correct format 
+        var data = Rally.technicalservices.FileUtilities.CSVtoDataHash(textData);
+        this_data['importedData'] = data; 
+        this_data['fetchFields']  = Object.keys(data[0]);
+        var fids = [];
+        Ext.each(data, function(d){
+            fids.push(d['FormattedID']);
+        });
+        this_data['formattedIds'] = fids;
+        return this_data;  
+    },
+    _startImport: function(file_contents){
+        this.logger.log('_startImport', file_contents);
         
         var pi_type = this.down('#type-combo').getRecord().get('TypePath');
-        var formatted_ids = ['F32','F33','F34'];
-        var fetch_fields = ['FormattedID','c_Cities','c_Country','c_CountryText'];
-        var imported_data = [
-                             {'FormattedID':'F32','c_Cities':'Pittsburgh','c_Country':'USA', 'c_CountryText':'United States'},
-                             {'FormattedID':'F33','c_Cities':'San Diego','c_Country':'USA', 'c_CountryText':'United States'},
-                             {'FormattedID':'F34','c_Cities':'Helsinki','c_Country':'Finland', 'c_CountryText':'Finland'}
-                             ];
         
-        this._fetchItems(pi_type,formatted_ids, fetch_fields).then({
+        var data = this._getImportedData(file_contents);
+        
+        this._fetchItems(pi_type,data.formattedIds, data.fetchFields).then({
             scope: this,
             success: function(store){
                 
                 //update store with values to be saved
-                this._updateValues(store,imported_data);
-                
-                
+                this._updateValues(store,data.importedData);
+                if (this.down('#update-grid')){
+                    this.down('#update-grid').destroy();
+                }
                 this.down('#grid_box').add({
                     xtype: 'rallygrid',
                     itemId: 'update-grid',
                     store: store,
-                    columnCfgs: this._getColumnCfgs(fetch_fields,this.down('#type-combo').getRecord())
+                    showRowActionsColumn: false,
+                    columnCfgs: this._getColumnCfgs(data.fetchFields,this.down('#type-combo').getRecord())
                 });
                 this.down('#save-button').setDisabled(false);
 
@@ -85,6 +119,11 @@ Ext.define('CustomApp', {
     },
     _getColumnCfgs: function(fields,model){
         var gcolcfgs = [];
+        gcolcfgs.push({ 
+            text: 'Status',
+            xtype: 'templatecolumn', 
+            tpl: '<tpl switch="status"><tpl case="ERROR"><font color="red">Error</font><tpl case="SAVED"><font color="green">Saved</font></tpl>'
+        });
         Ext.each(fields, function(f){
             var colcfgs = {};
             colcfgs['dataIndex'] = f;
@@ -93,13 +132,25 @@ Ext.define('CustomApp', {
         });
         return gcolcfgs;
     },
+    _updateSavedStatus: function(rec,operation,success){
+        this.logger.log('_updateSavedStatus',rec,operation,success);
+        if (success) {
+            rec.set('status','SAVED');
+        } else {
+            rec.set('status','ERROR');
+            var error = Ext.String.format('Error updating {0}: {1}',rec.get('FormattedID'),operation.error.errors[0]);
+            Rally.ui.notify.Notifier.showError({message: error});
+        }
+    },
     _saveUpdates: function(){
         this.logger.log('_saveUpdates');
         var updates_to_make = this.down('#update-grid').getStore().getUpdatedRecords();
         Ext.each(updates_to_make, function(rec){
-            rec.save();
+            rec.save({
+                scope: this,
+                callback: this._updateSavedStatus
+            });
         },this);
-        this.down('#save-button').setDisabled(true);
     },
     _fetchItems: function(type, formatted_ids, fetch_fields){
         this.logger.log('_fetchItems', type, formatted_ids, fetch_fields);
@@ -134,6 +185,9 @@ Ext.define('CustomApp', {
                     } else {
                         deferred.reject('_fetchItems failed to load PortfolioItems');
                     }
+                },
+                update: function(store, record,operation,modifiedFieldNames, options){
+                    console.log('update',store,record,operation,modifiedFieldNames,options);
                 }
             }
         });
