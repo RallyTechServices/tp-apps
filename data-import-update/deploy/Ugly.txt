@@ -3,10 +3,10 @@
 <head>
     <title>Data Import Update</title>
     <!--  (c) 2013 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Mon Dec 01 2014 11:08:05 GMT-0700 (MST) -->
+    <!--  Build Date: Mon Dec 01 2014 16:03:31 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Mon Dec 01 2014 11:08:05 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Mon Dec 01 2014 16:03:31 GMT-0700 (MST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -40,6 +40,14 @@
     margin-top: 25px;
     margin-right: 5px;
     cursor: pointer;
+}
+.ERROR {
+    color: red;
+    font-family: NotoSans, Helvetica, Arial;
+}
+.SAVED {
+    color: green;
+    font-family: NotoSans, Helvetica, Arial;
 }
     </style>
 
