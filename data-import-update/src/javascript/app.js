@@ -41,9 +41,20 @@ Ext.define('CustomApp', {
             scope: this,
             handler: this._saveUpdates,
             disabled: true
-        });    
+        });
+        
+        this.down('#selection_box').add({
+            xtype: 'container',
+            itemId: 'error_box',
+            padding: 25,
+            tpl: '<tpl for="."><font color="red">Error: {Msg}</error><br></tpl>'
+        });
     },
     _uploadFile: function(fld, val){
+        this.down('#error_box').update('');
+        if (val.length == 0){
+            return;
+        }
         var newValue = val.replace(/C:\\fakepath\\/g, '');
         fld.setRawValue(newValue);
 
@@ -55,6 +66,7 @@ Ext.define('CustomApp', {
             me._startImport(reader.result);
         });
         reader.readAsText(upload_file);
+        
     },
     _getImportedData: function(textData){
         this.logger.log('_getImportedData',textData);
@@ -106,16 +118,28 @@ Ext.define('CustomApp', {
     },
     _updateValues: function(store, imported_data){
         this.logger.log('_updateValues');
+        var errors = [];
         Ext.each(imported_data, function(d){
             var fid = d.FormattedID;
             var rec = store.findExactRecord('FormattedID',fid);
+            if (rec == null){
+                errors.push({'FormattedID': d.FormattedId, 'Msg':Ext.String.format("FormattedID {0} does not exist.",d['FormattedID'])});
+            }
             Ext.each(Object.keys(d),function(key){
-                if (key != 'FormattedID'){
-                    rec.set(key,d[key]);
+                if (rec) {
+                    if (key != 'FormattedID'){
+                        var val = d[key];
+                        if (!isNaN(val)){
+                            val = Number(val);
+                        }
+                        rec.set(key,val);
+                    } 
                 }
             },this);
             
         },this);
+        
+        this.down('#error_box').update(errors);
     },
     _getColumnCfgs: function(fields,model){
         var gcolcfgs = [];
