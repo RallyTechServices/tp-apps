@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cycle Time (Anystate)</title>
+    <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
+    <!--  Build Date: Thu Dec 04 2014 08:38:09 GMT-0700 (MST) -->
+    
+    <script type="text/javascript">
+        var APP_BUILD_DATE = "Thu Dec 04 2014 08:38:09 GMT-0700 (MST)";
+        var CHECKSUM = [%= checksum %];
+    </script>
+    
+    <script type="text/javascript" src="https://rally1.rallydev.com/apps/2.0rc3/sdk-debug.js?apiKey=_PUT_APIKEY_HERE_"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function() {
+             
+/**
+ * A link that pops up a version dialog box
+ */
+
+Ext.define('Rally.technicalservices.InfoLink',{
+    extend: 'Ext.Component',
+    alias: 'widget.tsinfolink',
+    
+    /**
+     * @cfg {String} informationHtml
+     * Additional text to be displayed on the popup dialog (for exmaple,
+     * to add a description of the app's use or functionality)
+     */
+    informationHtml: null,
+    
+    /**
+     * 
+     * cfg {String} title
+     * The title for the dialog box
+     */
+     title: "Build Information",
+    
+    renderTpl: "<div id='{id}-infolinkWrap' class='tsinfolink'>i</div>",
+
+    initComponent: function() {
+        this.callParent(arguments);
+       
+    },
+    
+    onRender: function() {
+        this.callParent(arguments);
+        this.mon(this.el,'click',this.onClick,this);
+    },
+    _generateChecksum: function(string){
+        var chk = 0x12345678,
+            i;
+        string = string.replace(/var CHECKSUM = .*;/,"");
+        string = string.replace(/\s/g,"");  //Remove all whitespace from the string.
+        
+        for (i = 0; i < string.length; i++) {
+            chk += (string.charCodeAt(i) * i);
+        }
+    
+        return chk;
+    },
+    _checkChecksum: function(container) {
+        var me = this;
+        Ext.Ajax.request({
+            url: document.URL,
+            params: {
+                id: 1
+            },
+            success: function (response) {
+                text = response.responseText;
+                if ( CHECKSUM ) {
+                    if ( CHECKSUM !== me._generateChecksum(text) ) {
+                        console.log("Checksums don't match!");
+                        if ( me.dialog ) {
+                            me.dialog.add({xtype:'container',html:'Checksums do not match'});
+                        }
+                    }
+                }
+            }
+        });
+    },
+    onClick: function(e) {
+        var me = this;
+        this._checkChecksum(this);
+        
+        var dialog_items = [];
+        
+        if ( this.informationHtml ) {
+            dialog_items.push({
+                xtype:'container',
+                html: this.informationHtml
+            });
+        }
+                
+        dialog_items.push({
+            xtype:'container',
+            html:"This app was created by the Rally Technical Services Team."
+        });
+        
+        if ( APP_BUILD_DATE ) {
+            dialog_items.push({
+                xtype:'container',
+                html:'Build date/time: ' + APP_BUILD_DATE
+            });
+        }
+        
+        if (this.dialog){this.dialog.destroy();}
+        this.dialog = Ext.create('Rally.ui.dialog.Dialog',{
+            defaults: { padding: 5, margin: 5 },
+            closable: true,
+            draggable: true,
+            title: me.title,
+            items: dialog_items
+        });
+        this.dialog.show();
+    }
+});
+
+/*
+ */
+Ext.define('Rally.technicalservices.Logger',{
+    constructor: function(config){
+        Ext.apply(this,config);
+    },
+    log: function(args){
+        var timestamp = "[ " + Ext.util.Format.date(new Date(), "Y-m-d H:i:s.u") + " ]";
+        //var output_args = arguments;
+        //output_args.unshift( [ "[ " + timestamp + " ]" ] );
+        //output_args = Ext.Array.push(output_args,arguments);
+        
+        var output_args = [];
+        output_args = Ext.Array.push(output_args,[timestamp]);
+        output_args = Ext.Array.push(output_args, Ext.Array.slice(arguments,0));
+
+        window.console && console.log.apply(console,output_args);
+    }
+
+});
+
+
+Ext.define('AnystateCycleCalculator', {
+    extend: 'Rally.data.lookback.calculator.BaseCalculator',
+    fromState: "In-Progress",
+    toState:"Accepted",
+    groupField: 'ScheduleState',
+    
+    runCalculation: function(snapshots) {
+        var final_state = this.toState;
+        var initial_state = this.fromState;
+        console.log('blah',initial_state,final_state,snapshots);
+        
+        /* iterate over the snapshots (each of which represents a transition
+         * 1.  Save the ones that are transitioning INTO the initial state in a hash by object id so that
+         *     we can retrieve it for the cycle time
+         * 2.  For the ones that are transitioning INTO the final state, find the _validfrom from the hash
+         *     and calculate the cycle time
+         *     
+         */
+         var dates_by_oid = {};
+         var start_date = Rally.util.DateTime.add(new Date(), "year", 50);
+         var end_date = Rally.util.DateTime.add(new Date(), "year", -50);
+         
+         Ext.Array.each(snapshots, function(snapshot){
+            // _PreviousValues.ScheduleState == null means we got created right into the state
+            // _PreviousValues.ScheduleState == undefined means this particular change wasn't a transition (so we'll look for > 0)
+            // TODO: check for just after the initial_state?  skipping is a problem to solve.
+            var state = snapshot[this.groupField];
+            
+            if (dates_by_oid[snapshot.ObjectID] == undefined){
+                dates_by_oid[snapshot.ObjectID] = {_finalDate: null, _startDate: null};
+            }
+            if (state == final_state && snapshot._ValidFrom && snapshot._PreviousValues 
+                    && snapshot._PreviousValues.ScheduleState != undefined){
+                dates_by_oid[snapshot.ObjectID]._finalDate = Rally.util.DateTime.fromIsoString(snapshot._ValidFrom);  
+                console.log('final',snapshot.ObjectID, dates_by_oid[snapshot.ObjectID]._finalDate);
+                if (Rally.util.DateTime.getDifference(dates_by_oid[snapshot.ObjectID]._finalDate,end_date,'day') > 0){
+                    end_date = Rally.util.DateTime.fromIsoString(snapshot._ValidFrom);  
+                    console.log(end_date, snapshot.ObjectID);
+                } 
+            }
+            console.log('snapshot',snapshot);
+            if (state == initial_state && snapshot._ValidFrom && snapshot._PreviousValues 
+                    && snapshot._PreviousValues.ScheduleState != undefined){
+                dates_by_oid[snapshot.ObjectID]._startDate = Rally.util.DateTime.fromIsoString(snapshot._ValidFrom);
+                if (Rally.util.DateTime.getDifference(dates_by_oid[snapshot.ObjectID]._startDate,start_date,'day') < 0){
+                    start_date = Rally.util.DateTime.fromIsoString(snapshot._ValidFrom);  
+                } 
+            }
+         }, this);
+         console.log('dates_by_oid',dates_by_oid);
+         console.log('start,end dates',start_date,end_date);
+         
+         var categories = this._getCategories(start_date, end_date, dates_by_oid);
+         console.log('categories', categories);
+         
+         var series = this._getSeries(categories, dates_by_oid);  
+         console.log('series',series);
+         
+        return {
+            series: series,
+            categories: categories
+        }
+    },
+    _getDateKey: function(d){
+        return Rally.util.DateTime.format(d, 'Y-m-d');  
+    },
+    _getCategories: function(start_date, end_date, dates_by_oid){
+        var categories = [];
+        var i = 0;
+        for (var d=start_date; d < end_date; d = Rally.util.DateTime.add(d,"day",1)){
+            categories[i] = this._getDateKey(d);  
+            i++;
+        }
+        return categories;  
+    },
+    _getSeries: function(categories, dates_by_oid){
+        var stats_by_date = {}; 
+        
+        Ext.Object.each(dates_by_oid, function(oid, dates){
+            if (dates._startDate && dates._finalDate) {
+                var diff = Rally.util.DateTime.getDifference(dates._finalDate, dates._startDate,'day');
+                dates_by_oid[oid]._cycleTime = diff;
+                var fd_key = this._getDateKey(dates._finalDate);
+               
+                if (stats_by_date[fd_key] == undefined){
+                    stats_by_date[fd_key] = {sum: 0, count: 0}; 
+                }
+                stats_by_date[fd_key].sum += diff;
+                stats_by_date[fd_key].count++; 
+            }
+        },this);
+        console.log(dates_by_oid);
+        
+        var data = [];
+        Ext.each(categories, function(c){
+            for (var i=0; i<categories.length; i++){
+                var date_key = categories[i];
+                if (stats_by_date[date_key] && stats_by_date[date_key].count > 0){
+                    data[i] = stats_by_date[date_key].sum/stats_by_date[date_key].count;
+                } else {
+                    data[i] = 0;
+                }
+            }
+        },this);
+        
+        return [{
+             name: 'Average Cycle Time (',
+             data: data
+         }];
+    },
+    _getSeriesName: function(){
+        return Ext.String.format('Average Cycle Time ({0} to {1})',this.fromState, this.toState);   
+    },
+    _getSnapsByFinalDate: function(dates_by_oid) {
+        var oids_by_date = {};
+        Ext.Object.each(dates_by_oid, function(oid, snapshot) {
+            if ( snapshot._final_date ) {
+                var key_date = snapshot._final_date;
+                var short_date = snapshot._final_date.replace(/T.*$/,'');
+                if ( ! snaps_by_date[short_date] ) {
+                    snaps_by_date[short_date] = [];
+                }
+                snaps_by_date[short_date].push(snapshot);
+            }
+        });
+        
+        return snaps_by_date;
+    },
+    _getCycleTimes: function(snaps_by_date){
+        var cycle_times_by_date = {};
+        
+        Ext.Object.each( snaps_by_date, function( key_date, snapshots ) {
+            var time_array = [];
+            Ext.Array.each(snapshots,function(snapshot){
+                var begin_time = Rally.util.DateTime.fromIsoString(snapshot._ValidFrom);
+                var end_time = Rally.util.DateTime.fromIsoString(snapshot._final_date);
+                var cycle_time = Rally.util.DateTime.getDifference(end_time,begin_time,'day');
+                time_array.push(cycle_time);
+            });
+            cycle_times_by_date[key_date] = Ext.Array.mean(time_array) || null;
+        });
+        
+        return cycle_times_by_date;
+    },
+    _orderAndFillDateHash: function(snaps_by_date){
+        // put existing keys in order:
+        var filled_snaps = {};
+       
+        var keys = Ext.Object.getKeys(snaps_by_date);
+        if ( keys.length > 0 ) {
+            var min = Ext.Array.min(keys);
+            var first_date = Rally.util.DateTime.fromIsoString(min);
+            var today = new Date();
+            
+            var check_date = first_date;
+            while( check_date < today ) {
+                var iso_date = Rally.util.DateTime.toIsoString(check_date).replace(/T.*$/,"");
+                filled_snaps[iso_date] = [];
+                if ( snaps_by_date[iso_date] ) {
+                    filled_snaps[iso_date] = snaps_by_date[iso_date];
+                }
+                check_date = Rally.util.DateTime.add(check_date,'day',1);
+            }
+        }
+        return filled_snaps;
+    }
+});
+Ext.define('CustomApp', {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+    logger: new Rally.technicalservices.Logger(),
+    groupField: 'ScheduleState',
+    fromState: 'In-Progress',
+    toState: 'Accepted',
+    items: [
+        {xtype:'container',itemId:'message_box',tpl:'Hello, <tpl>{_refObjectName}</tpl>'},
+        {xtype:'container',itemId:'display_box'},
+        {xtype:'tsinfolink'}
+    ],
+    launch: function() {
+        this.down('#message_box').update(this.getContext().getUser());
+        Ext.create('AnystateCycleCalculator',{});
+        this._createChart()
+        
+    },
+    _createChart: function(){
+        if (this.down('#rally-chart')){
+            this.down('#rally-chart').destroy();
+        }
+        
+        this.down('#display_box').add({
+            xtype: 'rallychart',
+            itemId: 'rally-chart',
+            calculatorType: 'AnystateCycleCalculator',
+            storeType: 'Rally.data.lookback.SnapshotStore',
+            storeConfig: this._getStoreConfig(),
+            calculatorConfig: {
+                initial_state: this.fromState,
+                final_state: this.toState,
+                group_field: this.groupField
+            },
+            chartConfig: {
+                chart: {
+                    zoomType: 'xy',
+                    type: 'line'
+                },
+                title: {
+                    text: 'Defined to In-Progress'
+                },
+                xAxis: {
+                    tickmarkPlacement: 'on',
+                    tickInterval: 30,
+                    title: {
+                        text: 'Date Entered Final State'
+                    }
+                },
+                yAxis: [
+                    {
+                        title: {
+                            text: 'Days'
+                        }
+                    }
+                ]
+            }
+        });
+
+    },
+    _getStoreConfig: function(){
+        var previous_value_group_field = '_PreviousValues.' + this.groupField;  
+        
+        return {
+            find: {
+                 Children: null,
+                 _ProjectHierarchy: this.getContext().getProject().ObjectID,
+                 _TypeHierarchy: {$in: ['HierarchicalRequirement']},
+                 ScheduleState: {$in: [this.fromState, this.toState]}
+     //            _ValidFrom: Rally.util.DateTime.add(new Date(),'day',-120)
+            },
+            fetch: ['ObjectID','ScheduleState','_ValidFrom','_ValidTo','_PreviousValues.ScheduleState'],
+            hydrate: ['ScheduleState',"_PreviousValues.ScheduleState"],
+            compress: true,
+            sort: {
+                _ValidFrom: 1
+            },
+            context: this.getContext().getDataContext(),
+            limit: Infinity
+        };
+    }
+
+});
+            
+               Rally.launchApp('CustomApp', {
+                   name: 'Cycle Time (Anystate)'
+               });
+        });
+    </script>
+    
+    <style type="text/css">
+
+.app {
+}
+.tsinfolink {
+    position:absolute;
+    right:0px;
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    text-align: center;
+    color: white;
+    background: #C0C0C0;
+    border-style: solid;
+    border-width: 1px;
+    margin-top: 25px;
+    margin-right: 5px;
+    cursor: pointer;
+}
+    </style>
+
+</head>
+<body></body>
+</html>

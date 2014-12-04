@@ -40,25 +40,33 @@ Ext.define('Rally.technicalservices.FileUtilities', {
         var a = [];                     // Initialize array to receive values.
         var rows = text.split(/\r\n?|\n/g);
         Ext.each(rows, function(row){
-            if (row && row.length > 0){
-                a.push(row.split(/,/));
+            var split_row = this._splitRow(row);
+            if (split_row.length > 0){
+                a.push(split_row);
             }
         },this);
-        console.log('lines',a);
+        console.log(a);
         return a; 
-        
-//        text.replace(re_value, // "Walk" the string using replace with callback.
-//            function(m0, m1, m2, m3) {
-//                // Remove backslash from \' in single quoted values.
-//                if      (m1 !== undefined) a.push(m1.replace(/\\'/g, "'"));
-//                // Remove backslash from \" in double quoted values.
-//                else if (m2 !== undefined) a.push(m2.replace(/\\"/g, '"'));
-//                else if (m3 !== undefined) a.push(m3);
-//                return ''; // Return empty string.
-//            });
-//        // Handle special case of empty last value.
-//        if (/,\s*$/.test(text)) a.push('');
-//        return a;
+    },
+    _splitRow: function(row){
+        /*
+         * http://stackoverflow.com/questions/8493195/how-can-i-parse-a-csv-string-with-javascript
+         */
+        var re_value = /(?!\s*$)\s*(?:'([^'\\]*(?:\\[\S\s][^'\\]*)*)'|"([^"\\]*(?:\\[\S\s][^"\\]*)*)"|([^,'"\s\\]*(?:\s+[^,'"\s\\]+)*))\s*(?:,|$)/g;
+        var a = [];
+        row.replace(re_value, // "Walk" the string using replace with callback.
+                function(m0, m1, m2, m3) {
+                    console.log('split',row,m0,m1,m2,m3)
+                // Remove backslash from \' in single quoted values.
+                if      (m1 !== undefined) a.push(m1.replace(/\\'/g, "'"));
+                // Remove backslash from \" in double quoted values.
+                else if (m2 !== undefined) a.push(m2.replace(/\\"/g, '"'));
+                else if (m3 !== undefined) a.push(m3);
+                return ''; // Return empty string.
+         });
+         // Handle special case of empty last value.
+         if (/,\s*$/.test(row)) a.push('');
+         return a;
     },
     CSVtoDataHash: function(text){
         var rows = Rally.technicalservices.FileUtilities.CSVtoArray(text);

@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Data Import Update</title>
+    <title>Cycle Time (Anystate)</title>
     <!--  (c) 2013 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Thu Dec 04 2014 08:36:14 GMT-0700 (MST) -->
+    <!--  Build Date: Thu Dec 04 2014 08:38:09 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Thu Dec 04 2014 08:36:14 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Thu Dec 04 2014 08:38:09 GMT-0700 (MST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -17,7 +17,7 @@
             
             
                Rally.launchApp('CustomApp', {
-                   name: 'Data Import Update'
+                   name: 'Cycle Time (Anystate)'
                });
         });
     </script>
@@ -40,14 +40,6 @@
     margin-top: 25px;
     margin-right: 5px;
     cursor: pointer;
-}
-.ERROR {
-    color: red;
-    font-family: NotoSans, Helvetica, Arial;
-}
-.SAVED {
-    color: green;
-    font-family: NotoSans, Helvetica, Arial;
 }
     </style>
 
