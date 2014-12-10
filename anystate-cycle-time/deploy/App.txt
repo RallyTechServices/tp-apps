@@ -3,11 +3,11 @@
 <head>
     <title>Cycle Time (Anystate)</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Tue Dec 09 2014 17:32:50 GMT-0700 (MST) -->
+    <!--  Build Date: Wed Dec 10 2014 08:44:32 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Dec 09 2014 17:32:50 GMT-0700 (MST)";
-        var CHECKSUM = 9198670543;
+        var APP_BUILD_DATE = "Wed Dec 10 2014 08:44:32 GMT-0700 (MST)";
+        var CHECKSUM = 8746711004;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -233,22 +233,33 @@ Ext.define('AnystateCycleCalculator', {
     
     _getSeries: function(categories, dates_by_oid, granularity, type){
         var stats_by_date = {}; 
-        
+        var summary = {noStartState: 0, noEndState: 0, negativeCycleTime: 0, total: 0, Defect: 0, HierarchicalRequirement: 0};
+
         Ext.Object.each(dates_by_oid, function(oid, dates){
             if (dates._startDate && dates._finalDate && (type == undefined || dates._type == type )) {
                 var diff = Rally.util.DateTime.getDifference(dates._finalDate, dates._startDate,'day');
                 dates_by_oid[oid]._cycleTime = diff;
                 var fd_key = this._getDateKey(dates._finalDate, granularity);
-               
+
+                if (diff < 0){
+                    summary.negativeCycleTime++;
+                }
+                    
                 if (stats_by_date[fd_key] == undefined ){
                     stats_by_date[fd_key] = []; 
                 }
                 stats_by_date[fd_key].push(diff)
+            } else {
+                if (dates._startDate == null) {
+                    summary.noStartState++;
+                }
+                if (dates._finalDate == null){
+                    summary.noEndState++;
+                }
             }
+            summary.total++; 
+            summary[dates._type]++;
         },this);
-        if (type == undefined){
-            this.rawChartData = stats_by_date;  
-        }
         
         var data = [];
         var export_data ='';  
@@ -262,16 +273,15 @@ Ext.define('AnystateCycleCalculator', {
                     sdev = this._getStandardDeviation(stats_by_date[date_key]);
                     data[i] = Math.max(Ext.Array.mean(stats_by_date[date_key]),0); 
                 } 
-                if (type == undefined){
-                    if (export_data.length == 0){
-                        export_data = "Date,Avg Cycle Time,Artifact Count,Standard Deviation\n";
-                    }
-                    export_data += Ext.String.format("{0},{1},{2},{3}\n",date_key,data[i], count, sdev);
+                if (export_data.length == 0){
+                    export_data = "Date,Avg Cycle Time,Artifact Count,Standard Deviation\n";
                 }
+                export_data += Ext.String.format("{0},{1},{2},{3}\n",date_key,data[i], count, sdev);
             }
         
-        if (export_data.length > 0){
+        if (type == undefined){
             this.exportData = export_data;
+            this.summary = summary;  
         }
         
         return {
@@ -303,59 +313,7 @@ Ext.define('AnystateCycleCalculator', {
         }
         return Ext.String.format(type_text);   
     },
-//    _getSnapsByFinalDate: function(dates_by_oid) {
-//        var oids_by_date = {};
-//        Ext.Object.each(dates_by_oid, function(oid, snapshot) {
-//            if ( snapshot._final_date ) {
-//                var key_date = snapshot._final_date;
-//                var short_date = snapshot._final_date.replace(/T.*$/,'');
-//                if ( ! snaps_by_date[short_date] ) {
-//                    snaps_by_date[short_date] = [];
-//                }
-//                snaps_by_date[short_date].push(snapshot);
-//            }
-//        });
-//        
-//        return snaps_by_date;
-//    },
-//    _getCycleTimes: function(snaps_by_date){
-//        var cycle_times_by_date = {};
-//        
-//        Ext.Object.each( snaps_by_date, function( key_date, snapshots ) {
-//            var time_array = [];
-//            Ext.Array.each(snapshots,function(snapshot){
-//                var begin_time = Rally.util.DateTime.fromIsoString(snapshot._ValidFrom);
-//                var end_time = Rally.util.DateTime.fromIsoString(snapshot._final_date);
-//                var cycle_time = Rally.util.DateTime.getDifference(end_time,begin_time,'day');
-//                time_array.push(cycle_time);
-//            });
-//            cycle_times_by_date[key_date] = Ext.Array.mean(time_array) || null;
-//        });
-//        
-//        return cycle_times_by_date;
-//    },
-//    _orderAndFillDateHash: function(snaps_by_date){
-//        // put existing keys in order:
-//        var filled_snaps = {};
-//       
-//        var keys = Ext.Object.getKeys(snaps_by_date);
-//        if ( keys.length > 0 ) {
-//            var min = Ext.Array.min(keys);
-//            var first_date = Rally.util.DateTime.fromIsoString(min);
-//            var today = new Date();
-//            
-//            var check_date = first_date;
-//            while( check_date < today ) {
-//                var iso_date = Rally.util.DateTime.toIsoString(check_date).replace(/T.*$/,"");
-//                filled_snaps[iso_date] = [];
-//                if ( snaps_by_date[iso_date] ) {
-//                    filled_snaps[iso_date] = snaps_by_date[iso_date];
-//                }
-//                check_date = Rally.util.DateTime.add(check_date,'day',1);
-//            }
-//        }
-//        return filled_snaps;
-//    }
+
 });
 Ext.define('Rally.technicalservices.FileUtilities', {
     singleton: true,
@@ -423,6 +381,7 @@ Ext.define('CustomApp', {
             fieldLabel:  'End',
             labelAlign: 'right',
             margin: 10
+           
         });
         this.down('#selector_box').add({
             xtype: 'rallycombobox',
@@ -469,19 +428,38 @@ Ext.define('CustomApp', {
     _exportData: function(){
         this.logger.log('_exportData');
         var export_text = this.down('#rally-chart').calculator.exportData;
-        Rally.technicalservices.FileUtilities.saveTextAsFile(export_text);
+        var file_name = Ext.String.format('cycletime-{0}-to-{1}.csv')
+        Rally.technicalservices.FileUtilities.saveTextAsFile(export_text, file_name);
+    },
+    _validateSelectedStates: function(){
+        var from_cb = this.down('#cb-from-state');
+        var to_cb = this.down('#cb-to-state');
+        
+        var from_idx = from_cb.getStore().findExact(from_cb.getValueField(),from_cb.getValue());
+        var to_idx = to_cb.getStore().findExact(to_cb.getValueField(),to_cb.getValue());
+        
+        return from_idx < to_idx;
     },
     _createChart: function(){
         this.logger.log('_createChart');
-        if (this.down('#rally-chart')){
-            this.down('#rally-chart').destroy();
-        }
         
         var start_state = this._getStartState();
         var end_state = this._getEndState();
+        if (start_state >= end_state){
+            alert('The From State must come before the To State.');
+            return;
+        }
+        
         var title_text = 'Average Cycle Time (Days) from ' + start_state + ' to ' + end_state;
         var granularity = this._getGranularity();
         var tick_interval = this._getTickInterval(granularity);  
+
+            
+        
+        
+        if (this.down('#rally-chart')){
+            this.down('#rally-chart').destroy();
+        }
         
         this.down('#display_box').add({
             xtype: 'rallychart',
@@ -512,7 +490,7 @@ Ext.define('CustomApp', {
                 yAxis: [
                     {
                         title: {
-                            text: granularity
+                            text: 'Days'
                         }
                     }
                 ],
@@ -528,6 +506,7 @@ Ext.define('CustomApp', {
                 scope: this,
                 readyToRender: function(chart){
                     this.down('#btn-export').setDisabled(false);
+                    this._updateSummary(chart.calculator.summary);
                 }
             }
         });
@@ -553,6 +532,15 @@ Ext.define('CustomApp', {
             context: this.getContext().getDataContext(),
             limit: Infinity
         };
+    },
+    _updateSummary: function(summary_data){
+        var summary_tpl = new Ext.Template('<div align="center">Artifacts with No Start State: {noStartState}<br>Artifacts with no End State: {noEndState}<br> Artifacts with negative Cycle Time:  {negativeCycleTime}<br>Total Defects:  {Defect}<br>Total Stories:  {HierarchicalRequirement}<br>Total Artifacts:  {total}</div>');
+        var summary = this.down('#display_box').add({
+            xtype: 'container',
+            tpl: summary_tpl,
+            flex: 1
+        });
+        summary.update(summary_data);
     }
 
 });

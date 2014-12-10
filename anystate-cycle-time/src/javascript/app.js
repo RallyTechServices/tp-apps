@@ -28,6 +28,7 @@ Ext.define('CustomApp', {
             fieldLabel:  'End',
             labelAlign: 'right',
             margin: 10
+           
         });
         this.down('#selector_box').add({
             xtype: 'rallycombobox',
@@ -74,19 +75,38 @@ Ext.define('CustomApp', {
     _exportData: function(){
         this.logger.log('_exportData');
         var export_text = this.down('#rally-chart').calculator.exportData;
-        Rally.technicalservices.FileUtilities.saveTextAsFile(export_text);
+        var file_name = Ext.String.format('cycletime-{0}-to-{1}.csv')
+        Rally.technicalservices.FileUtilities.saveTextAsFile(export_text, file_name);
+    },
+    _validateSelectedStates: function(){
+        var from_cb = this.down('#cb-from-state');
+        var to_cb = this.down('#cb-to-state');
+        
+        var from_idx = from_cb.getStore().findExact(from_cb.getValueField(),from_cb.getValue());
+        var to_idx = to_cb.getStore().findExact(to_cb.getValueField(),to_cb.getValue());
+        
+        return from_idx < to_idx;
     },
     _createChart: function(){
         this.logger.log('_createChart');
-        if (this.down('#rally-chart')){
-            this.down('#rally-chart').destroy();
-        }
         
         var start_state = this._getStartState();
         var end_state = this._getEndState();
+        if (start_state >= end_state){
+            alert('The From State must come before the To State.');
+            return;
+        }
+        
         var title_text = 'Average Cycle Time (Days) from ' + start_state + ' to ' + end_state;
         var granularity = this._getGranularity();
         var tick_interval = this._getTickInterval(granularity);  
+
+            
+        
+        
+        if (this.down('#rally-chart')){
+            this.down('#rally-chart').destroy();
+        }
         
         this.down('#display_box').add({
             xtype: 'rallychart',
@@ -117,7 +137,7 @@ Ext.define('CustomApp', {
                 yAxis: [
                     {
                         title: {
-                            text: granularity
+                            text: 'Days'
                         }
                     }
                 ],
@@ -133,6 +153,7 @@ Ext.define('CustomApp', {
                 scope: this,
                 readyToRender: function(chart){
                     this.down('#btn-export').setDisabled(false);
+                    this._updateSummary(chart.calculator.summary);
                 }
             }
         });
@@ -158,6 +179,15 @@ Ext.define('CustomApp', {
             context: this.getContext().getDataContext(),
             limit: Infinity
         };
+    },
+    _updateSummary: function(summary_data){
+        var summary_tpl = new Ext.Template('<div align="center">Artifacts with No Start State: {noStartState}<br>Artifacts with no End State: {noEndState}<br> Artifacts with negative Cycle Time:  {negativeCycleTime}<br>Total Defects:  {Defect}<br>Total Stories:  {HierarchicalRequirement}<br>Total Artifacts:  {total}</div>');
+        var summary = this.down('#display_box').add({
+            xtype: 'container',
+            tpl: summary_tpl,
+            flex: 1
+        });
+        summary.update(summary_data);
     }
 
 });

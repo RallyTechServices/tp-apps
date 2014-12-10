@@ -93,22 +93,33 @@ Ext.define('AnystateCycleCalculator', {
     
     _getSeries: function(categories, dates_by_oid, granularity, type){
         var stats_by_date = {}; 
-        
+        var summary = {noStartState: 0, noEndState: 0, negativeCycleTime: 0, total: 0, Defect: 0, HierarchicalRequirement: 0};
+
         Ext.Object.each(dates_by_oid, function(oid, dates){
             if (dates._startDate && dates._finalDate && (type == undefined || dates._type == type )) {
                 var diff = Rally.util.DateTime.getDifference(dates._finalDate, dates._startDate,'day');
                 dates_by_oid[oid]._cycleTime = diff;
                 var fd_key = this._getDateKey(dates._finalDate, granularity);
-               
+
+                if (diff < 0){
+                    summary.negativeCycleTime++;
+                }
+                    
                 if (stats_by_date[fd_key] == undefined ){
                     stats_by_date[fd_key] = []; 
                 }
                 stats_by_date[fd_key].push(diff)
+            } else {
+                if (dates._startDate == null) {
+                    summary.noStartState++;
+                }
+                if (dates._finalDate == null){
+                    summary.noEndState++;
+                }
             }
+            summary.total++; 
+            summary[dates._type]++;
         },this);
-        if (type == undefined){
-            this.rawChartData = stats_by_date;  
-        }
         
         var data = [];
         var export_data ='';  
@@ -122,16 +133,15 @@ Ext.define('AnystateCycleCalculator', {
                     sdev = this._getStandardDeviation(stats_by_date[date_key]);
                     data[i] = Math.max(Ext.Array.mean(stats_by_date[date_key]),0); 
                 } 
-                if (type == undefined){
-                    if (export_data.length == 0){
-                        export_data = "Date,Avg Cycle Time,Artifact Count,Standard Deviation\n";
-                    }
-                    export_data += Ext.String.format("{0},{1},{2},{3}\n",date_key,data[i], count, sdev);
+                if (export_data.length == 0){
+                    export_data = "Date,Avg Cycle Time,Artifact Count,Standard Deviation\n";
                 }
+                export_data += Ext.String.format("{0},{1},{2},{3}\n",date_key,data[i], count, sdev);
             }
         
-        if (export_data.length > 0){
+        if (type == undefined){
             this.exportData = export_data;
+            this.summary = summary;  
         }
         
         return {
@@ -163,57 +173,5 @@ Ext.define('AnystateCycleCalculator', {
         }
         return Ext.String.format(type_text);   
     },
-//    _getSnapsByFinalDate: function(dates_by_oid) {
-//        var oids_by_date = {};
-//        Ext.Object.each(dates_by_oid, function(oid, snapshot) {
-//            if ( snapshot._final_date ) {
-//                var key_date = snapshot._final_date;
-//                var short_date = snapshot._final_date.replace(/T.*$/,'');
-//                if ( ! snaps_by_date[short_date] ) {
-//                    snaps_by_date[short_date] = [];
-//                }
-//                snaps_by_date[short_date].push(snapshot);
-//            }
-//        });
-//        
-//        return snaps_by_date;
-//    },
-//    _getCycleTimes: function(snaps_by_date){
-//        var cycle_times_by_date = {};
-//        
-//        Ext.Object.each( snaps_by_date, function( key_date, snapshots ) {
-//            var time_array = [];
-//            Ext.Array.each(snapshots,function(snapshot){
-//                var begin_time = Rally.util.DateTime.fromIsoString(snapshot._ValidFrom);
-//                var end_time = Rally.util.DateTime.fromIsoString(snapshot._final_date);
-//                var cycle_time = Rally.util.DateTime.getDifference(end_time,begin_time,'day');
-//                time_array.push(cycle_time);
-//            });
-//            cycle_times_by_date[key_date] = Ext.Array.mean(time_array) || null;
-//        });
-//        
-//        return cycle_times_by_date;
-//    },
-//    _orderAndFillDateHash: function(snaps_by_date){
-//        // put existing keys in order:
-//        var filled_snaps = {};
-//       
-//        var keys = Ext.Object.getKeys(snaps_by_date);
-//        if ( keys.length > 0 ) {
-//            var min = Ext.Array.min(keys);
-//            var first_date = Rally.util.DateTime.fromIsoString(min);
-//            var today = new Date();
-//            
-//            var check_date = first_date;
-//            while( check_date < today ) {
-//                var iso_date = Rally.util.DateTime.toIsoString(check_date).replace(/T.*$/,"");
-//                filled_snaps[iso_date] = [];
-//                if ( snaps_by_date[iso_date] ) {
-//                    filled_snaps[iso_date] = snaps_by_date[iso_date];
-//                }
-//                check_date = Rally.util.DateTime.add(check_date,'day',1);
-//            }
-//        }
-//        return filled_snaps;
-//    }
+
 });
