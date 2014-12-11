@@ -3,10 +3,10 @@
 <head>
     <title>Cycle Time (Anystate)</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Wed Dec 10 2014 08:44:32 GMT-0700 (MST) -->
+    <!--  Build Date: Wed Dec 10 2014 17:32:13 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Dec 10 2014 08:44:32 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Wed Dec 10 2014 17:32:13 GMT-0700 (MST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -37,7 +37,7 @@ Ext.define('Rally.technicalservices.InfoLink',{
      */
      title: "Build Information",
     
-    renderTpl: "<div id='{id}-infolinkWrap' class='tsinfolink'>i</div>",
+    renderTpl: "<div id='{id}-infolinkWrap' class='tsinfolink'>?</div>",
 
     initComponent: function() {
         this.callParent(arguments);
@@ -111,7 +111,8 @@ Ext.define('Rally.technicalservices.InfoLink',{
             closable: true,
             draggable: true,
             title: me.title,
-            items: dialog_items
+            items: dialog_items,
+            width: '60%'
         });
         this.dialog.show();
     }
@@ -146,7 +147,7 @@ Ext.define('AnystateCycleCalculator', {
     runCalculation: function(snapshots) {
         var final_state = this.endState;
         var initial_state = this.startState;
-        
+        this.exportData = {}; 
         /* iterate over the snapshots (each of which represents a transition
          * 1.  Save the ones that are transitioning INTO the initial state in a hash by object id so that
          *     we can retrieve it for the cycle time
@@ -157,19 +158,22 @@ Ext.define('AnystateCycleCalculator', {
          var dates_by_oid = {};
          var start_date = Rally.util.DateTime.add(new Date(), "year", 50);
          var end_date = Rally.util.DateTime.add(new Date(), "year", -50);
-         
+         var backlogItemsWithPrevStateNull = 0;
          Ext.Array.each(snapshots, function(snapshot){
             // _PreviousValues.ScheduleState == null means we got created right into the state
             // _PreviousValues.ScheduleState == undefined means this particular change wasn't a transition (so we'll look for > 0)
             // TODO: check for just after the initial_state?  skipping is a problem to solve.
             var state = snapshot[this.groupField];
-            
+            if (snapshot._PreviousState == null){
+                console.log('state',state,'_PreviousValues.state', snapshot._PreviousValues.ScheduleState);
+                backlogItemsWithPrevStateNull++;
+            }
             if (dates_by_oid[snapshot.ObjectID] == undefined){
                 var object_type = snapshot._TypeHierarchy.slice(-1)[0];
                 dates_by_oid[snapshot.ObjectID] = {_finalDate: null, _startDate: null, _type: object_type};
             }
             if (state == final_state && snapshot._ValidFrom && ((snapshot._PreviousValues 
-                    && snapshot._PreviousValues.ScheduleState != undefined) ||  (snapshot._SnapshotNumber == 0))){
+                    && snapshot._PreviousValues.ScheduleState != undefined) ||  (snapshot._PreviousValues.ScheduleState == null))){
 
                 dates_by_oid[snapshot.ObjectID]._finalDate = Rally.util.DateTime.fromIsoString(snapshot._ValidFrom);  
 
@@ -180,7 +184,7 @@ Ext.define('AnystateCycleCalculator', {
             }
 
             if (state == initial_state && snapshot._ValidFrom && ((snapshot._PreviousValues 
-                    && snapshot._PreviousValues.ScheduleState != undefined) || (snapshot._SnapshotNumber == 0))){ //0 means that this is the first snapshot
+                    && snapshot._PreviousValues.ScheduleState != undefined) || (snapshot._PreviousValues.ScheduleState == null))){ //0 means that this is the first snapshot
                 var diff = 0; 
                 if (dates_by_oid[snapshot.ObjectID]._startDate){
                     var diff = Rally.util.DateTime.getDifference(new Date(dates_by_oid[snapshot.ObjectID]._startDate), new Date(snapshot._ValidFrom),'day');
@@ -194,7 +198,7 @@ Ext.define('AnystateCycleCalculator', {
                 } 
             }
          }, this);
-         
+         console.log('total backlog with null', backlogItemsWithPrevStateNull);
          var categories = this._getCategories(start_date, end_date, dates_by_oid, this.granularity);
    //      console.log('categories', categories);
 
@@ -212,7 +216,13 @@ Ext.define('AnystateCycleCalculator', {
     _getDateKey: function(d, granularity){
         switch(granularity){
             case 'Week':
-                return 'Week' + Rally.util.DateTime.format(d, 'W y');
+                var weekday_num = Rally.util.DateTime.format(d, 'N');
+                var day_offset = weekday_num - 1;  
+                var day = d.getDate() - day_offset;
+                var week_date = new Date(d.getFullYear(),d.getMonth(),day);
+                return Rally.util.DateTime.formatWithDefault(week_date);
+
+//                return 'Week' + Rally.util.DateTime.format(d, 'W y');
             case 'Month':
                 return Rally.util.DateTime.format(d, 'M y');
             default:
@@ -279,16 +289,26 @@ Ext.define('AnystateCycleCalculator', {
                 export_data += Ext.String.format("{0},{1},{2},{3}\n",date_key,data[i], count, sdev);
             }
         
+        var export_data_type = this._getSeriesName(type);  
         if (type == undefined){
-            this.exportData = export_data;
+            export_data_type = 'Combined';
             this.summary = summary;  
+            this.exportData['Raw Data'] = this._getRawDataExport(stats_by_date);
         }
+        this.exportData[export_data_type] = export_data;
         
         return {
              name: this._getSeriesName(type),
              data: data,
              display: 'line'
          };
+    },
+    _getRawDataExport: function(stats_by_date){
+        var text = Ext.String.format('Date, Average, StdDev, CycleTime\n');
+        Ext.each(Object.keys(stats_by_date), function(key){
+            text += Ext.String.format('{0},{1},{2},{3}\n',key,Ext.Array.mean(stats_by_date[key]),this._getStandardDeviation(stats_by_date[key]),stats_by_date[key].join(','));
+        },this);
+        return text;
     },
     _getStandardDeviation: function(vals){
         var avg = Ext.Array.mean(vals);
@@ -357,13 +377,18 @@ Ext.define('CustomApp', {
     logger: new Rally.technicalservices.Logger(),
     groupField: 'ScheduleState',
     items: [
-        {xtype:'container',itemId:'selector_box', layout: {type: 'hbox'}, padding:5, tpl:'Hello, <tpl>{_refObjectName}</tpl>'},
+        {xtype:'container',itemId:'selector_box', layout: {type: 'hbox'}, padding:5, flex: 1},
         {xtype:'container',itemId:'display_box'},
-        {xtype:'tsinfolink'}
     ],
+    
     launch: function() {
         Ext.create('AnystateCycleCalculator',{});
         
+        this.down('#selector_box').add({
+            xtype: 'tsinfolink',
+            title: 'Anystate Cycle Time App',
+            informationHtml: this._getAppInformation()
+        });
         this.down('#selector_box').add({
             xtype: 'rallyfieldvaluecombobox',
             itemId: 'cb-from-state',
@@ -371,6 +396,7 @@ Ext.define('CustomApp', {
             field: 'ScheduleState',
             fieldLabel:  'Start',
             labelAlign: 'right',
+            labelWidth: 50,
             margin: 10
         });
         this.down('#selector_box').add({
@@ -380,6 +406,7 @@ Ext.define('CustomApp', {
             field: 'ScheduleState',
             fieldLabel:  'End',
             labelAlign: 'right',
+            labelWidth: 50,
             margin: 10
            
         });
@@ -389,6 +416,7 @@ Ext.define('CustomApp', {
             store: ['Week','Month'],
             fieldLabel:  'Granularity',
             labelAlign: 'right',
+            labelWidth: 75,
             margin: 10
         });
         this.down('#selector_box').add({
@@ -398,6 +426,15 @@ Ext.define('CustomApp', {
             scope: this,
             margin: 10,
             handler: this._createChart
+        });
+        this.down('#selector_box').add({
+            xtype: 'rallycombobox',
+            itemId: 'cb-export-format',
+            store: ['Combined','User Stories','Defects','Raw Data'],
+            fieldLabel: 'Series to Export',
+            labelWidth: 125,
+            labelAlign: 'right',
+            margin: 10
         });
         this.down('#selector_box').add({
             xtype: 'rallybutton',
@@ -427,8 +464,9 @@ Ext.define('CustomApp', {
     },
     _exportData: function(){
         this.logger.log('_exportData');
-        var export_text = this.down('#rally-chart').calculator.exportData;
-        var file_name = Ext.String.format('cycletime-{0}-to-{1}.csv')
+        var export_data_type = this.down('#cb-export-format').getValue();
+        var export_text = this.down('#rally-chart').calculator.exportData[export_data_type];
+        var file_name = Ext.String.format('{0}-cycletime-{1}-to-{2}.csv',export_data_type, this._getStartState(), this._getEndState());
         Rally.technicalservices.FileUtilities.saveTextAsFile(export_text, file_name);
     },
     _validateSelectedStates: function(){
@@ -453,12 +491,12 @@ Ext.define('CustomApp', {
         var title_text = 'Average Cycle Time (Days) from ' + start_state + ' to ' + end_state;
         var granularity = this._getGranularity();
         var tick_interval = this._getTickInterval(granularity);  
-
-            
-        
         
         if (this.down('#rally-chart')){
             this.down('#rally-chart').destroy();
+        }
+        if (this.down('#summary-box')){
+            this.down('#summary-box').destroy();
         }
         
         this.down('#display_box').add({
@@ -534,13 +572,23 @@ Ext.define('CustomApp', {
         };
     },
     _updateSummary: function(summary_data){
-        var summary_tpl = new Ext.Template('<div align="center">Artifacts with No Start State: {noStartState}<br>Artifacts with no End State: {noEndState}<br> Artifacts with negative Cycle Time:  {negativeCycleTime}<br>Total Defects:  {Defect}<br>Total Stories:  {HierarchicalRequirement}<br>Total Artifacts:  {total}</div>');
+        var summary_tpl = new Ext.Template('<div align="center">Artifacts that did not transition into the Start State: {noStartState}<br>Artifacts that did not transition into End State: {noEndState}<br> Artifacts with negative Cycle Time:  {negativeCycleTime}<br>Total Defects:  {Defect}<br>Total Stories:  {HierarchicalRequirement}<br>Total Artifacts:  {total}</div>');
         var summary = this.down('#display_box').add({
             xtype: 'container',
+            itemId: 'summary-box',
             tpl: summary_tpl,
             flex: 1
         });
         summary.update(summary_data);
+    },
+    _getAppInformation: function(){
+        return '<li>The selected Start ScheduleState must fall before the selected End ScheduleState in the workflow' +  
+        '<li>Granularity:  If Week is selected, then cycle time will be aggregated for the week starting on the date shown on the x-axis.  Each week begins on a Monday.  If Month is selected, then cycle times will be aggregated for the Month.'  +
+        '<li>Cycle time for an artifact is calculated in days.  Cycle time will be calculated from the first time the artifact enters the Start ScheduleState until the last time the artifact enters the End ScheduleState.' +
+        '<li>Cycle time is only calculated for artifacts that have transitioned into the  Start ScheduleState and into the End ScheduleState.  If an artifact transitions into one of the selected states but not both, it will not be included into cycle time calculations.' +
+        '<li>If an artifact transitions into the End ScheduleState before it transitions into the Start ScheduleState and never transitions back into the End ScheduleState, it will have a negative cycle time.  Negative cycle times are not included in cycle time calculations.' +
+        '<li>Series data can be exported in CSV format using the Export button.' +
+        '<li>The Raw Data export will export the individual cycle time values for each point of the selected granularity.'
     }
 
 });
@@ -556,20 +604,21 @@ Ext.define('CustomApp', {
 .app {
 }
 .tsinfolink {
-    position:absolute;
-    right:0px;
-    width: 14px;
-    height: 14px;
-    border-radius: 7px;
+  //  position:absolute;
+ //   right:0px;
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
     text-align: center;
     color: white;
     background: #C0C0C0;
     border-style: solid;
     border-width: 1px;
-    margin-top: 25px;
-    margin-right: 5px;
+    margin-top: 10px;
+    margin-left: 10px;
     cursor: pointer;
 }
+
     </style>
 
 </head>

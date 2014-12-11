@@ -6,7 +6,7 @@ Ext.define('AnystateCycleCalculator', {
     runCalculation: function(snapshots) {
         var final_state = this.endState;
         var initial_state = this.startState;
-        
+        this.exportData = {}; 
         /* iterate over the snapshots (each of which represents a transition
          * 1.  Save the ones that are transitioning INTO the initial state in a hash by object id so that
          *     we can retrieve it for the cycle time
@@ -17,19 +17,22 @@ Ext.define('AnystateCycleCalculator', {
          var dates_by_oid = {};
          var start_date = Rally.util.DateTime.add(new Date(), "year", 50);
          var end_date = Rally.util.DateTime.add(new Date(), "year", -50);
-         
+         var backlogItemsWithPrevStateNull = 0;
          Ext.Array.each(snapshots, function(snapshot){
             // _PreviousValues.ScheduleState == null means we got created right into the state
             // _PreviousValues.ScheduleState == undefined means this particular change wasn't a transition (so we'll look for > 0)
             // TODO: check for just after the initial_state?  skipping is a problem to solve.
             var state = snapshot[this.groupField];
-            
+            if (snapshot._PreviousState == null){
+                console.log('state',state,'_PreviousValues.state', snapshot._PreviousValues.ScheduleState);
+                backlogItemsWithPrevStateNull++;
+            }
             if (dates_by_oid[snapshot.ObjectID] == undefined){
                 var object_type = snapshot._TypeHierarchy.slice(-1)[0];
                 dates_by_oid[snapshot.ObjectID] = {_finalDate: null, _startDate: null, _type: object_type};
             }
             if (state == final_state && snapshot._ValidFrom && ((snapshot._PreviousValues 
-                    && snapshot._PreviousValues.ScheduleState != undefined) ||  (snapshot._SnapshotNumber == 0))){
+                    && snapshot._PreviousValues.ScheduleState != undefined) ||  (snapshot._PreviousValues.ScheduleState == null))){
 
                 dates_by_oid[snapshot.ObjectID]._finalDate = Rally.util.DateTime.fromIsoString(snapshot._ValidFrom);  
 
@@ -40,7 +43,7 @@ Ext.define('AnystateCycleCalculator', {
             }
 
             if (state == initial_state && snapshot._ValidFrom && ((snapshot._PreviousValues 
-                    && snapshot._PreviousValues.ScheduleState != undefined) || (snapshot._SnapshotNumber == 0))){ //0 means that this is the first snapshot
+                    && snapshot._PreviousValues.ScheduleState != undefined) || (snapshot._PreviousValues.ScheduleState == null))){ //0 means that this is the first snapshot
                 var diff = 0; 
                 if (dates_by_oid[snapshot.ObjectID]._startDate){
                     var diff = Rally.util.DateTime.getDifference(new Date(dates_by_oid[snapshot.ObjectID]._startDate), new Date(snapshot._ValidFrom),'day');
@@ -54,7 +57,7 @@ Ext.define('AnystateCycleCalculator', {
                 } 
             }
          }, this);
-         
+         console.log('total backlog with null', backlogItemsWithPrevStateNull);
          var categories = this._getCategories(start_date, end_date, dates_by_oid, this.granularity);
    //      console.log('categories', categories);
 
@@ -72,7 +75,13 @@ Ext.define('AnystateCycleCalculator', {
     _getDateKey: function(d, granularity){
         switch(granularity){
             case 'Week':
-                return 'Week' + Rally.util.DateTime.format(d, 'W y');
+                var weekday_num = Rally.util.DateTime.format(d, 'N');
+                var day_offset = weekday_num - 1;  
+                var day = d.getDate() - day_offset;
+                var week_date = new Date(d.getFullYear(),d.getMonth(),day);
+                return Rally.util.DateTime.formatWithDefault(week_date);
+
+//                return 'Week' + Rally.util.DateTime.format(d, 'W y');
             case 'Month':
                 return Rally.util.DateTime.format(d, 'M y');
             default:
@@ -139,16 +148,26 @@ Ext.define('AnystateCycleCalculator', {
                 export_data += Ext.String.format("{0},{1},{2},{3}\n",date_key,data[i], count, sdev);
             }
         
+        var export_data_type = this._getSeriesName(type);  
         if (type == undefined){
-            this.exportData = export_data;
+            export_data_type = 'Combined';
             this.summary = summary;  
+            this.exportData['Raw Data'] = this._getRawDataExport(stats_by_date);
         }
+        this.exportData[export_data_type] = export_data;
         
         return {
              name: this._getSeriesName(type),
              data: data,
              display: 'line'
          };
+    },
+    _getRawDataExport: function(stats_by_date){
+        var text = Ext.String.format('Date, Average, StdDev, CycleTime\n');
+        Ext.each(Object.keys(stats_by_date), function(key){
+            text += Ext.String.format('{0},{1},{2},{3}\n',key,Ext.Array.mean(stats_by_date[key]),this._getStandardDeviation(stats_by_date[key]),stats_by_date[key].join(','));
+        },this);
+        return text;
     },
     _getStandardDeviation: function(vals){
         var avg = Ext.Array.mean(vals);

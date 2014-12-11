@@ -20,7 +20,7 @@ Ext.define('Rally.technicalservices.InfoLink',{
      */
      title: "Build Information",
     
-    renderTpl: "<div id='{id}-infolinkWrap' class='tsinfolink'>i</div>",
+    renderTpl: "<div id='{id}-infolinkWrap' class='tsinfolink'>?</div>",
 
     initComponent: function() {
         this.callParent(arguments);
@@ -94,7 +94,8 @@ Ext.define('Rally.technicalservices.InfoLink',{
             closable: true,
             draggable: true,
             title: me.title,
-            items: dialog_items
+            items: dialog_items,
+            width: '60%'
         });
         this.dialog.show();
     }
