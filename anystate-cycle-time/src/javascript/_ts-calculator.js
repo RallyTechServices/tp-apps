@@ -23,17 +23,15 @@ Ext.define('AnystateCycleCalculator', {
             // _PreviousValues.ScheduleState == undefined means this particular change wasn't a transition (so we'll look for > 0)
             // TODO: check for just after the initial_state?  skipping is a problem to solve.
             var state = snapshot[this.groupField];
-            if (snapshot._PreviousState == null){
-                console.log('state',state,'_PreviousValues.state', snapshot._PreviousValues.ScheduleState);
-                backlogItemsWithPrevStateNull++;
+            if (snapshot._PreviousValues == null || snapshot._PreviousValues.ScheduleState == null){
+                   backlogItemsWithPrevStateNull++;
             }
+
             if (dates_by_oid[snapshot.ObjectID] == undefined){
                 var object_type = snapshot._TypeHierarchy.slice(-1)[0];
                 dates_by_oid[snapshot.ObjectID] = {_finalDate: null, _startDate: null, _type: object_type};
             }
-            if (state == final_state && snapshot._ValidFrom && ((snapshot._PreviousValues 
-                    && snapshot._PreviousValues.ScheduleState != undefined) ||  (snapshot._PreviousValues.ScheduleState == null))){
-
+            if (state == final_state && snapshot._ValidFrom){
                 dates_by_oid[snapshot.ObjectID]._finalDate = Rally.util.DateTime.fromIsoString(snapshot._ValidFrom);  
 
                 if (Rally.util.DateTime.getDifference(dates_by_oid[snapshot.ObjectID]._finalDate,end_date,'day') > 0){
@@ -42,8 +40,7 @@ Ext.define('AnystateCycleCalculator', {
                 } 
             }
 
-            if (state == initial_state && snapshot._ValidFrom && ((snapshot._PreviousValues 
-                    && snapshot._PreviousValues.ScheduleState != undefined) || (snapshot._PreviousValues.ScheduleState == null))){ //0 means that this is the first snapshot
+            if (state == initial_state && snapshot._ValidFrom){ //0 means that this is the first snapshot
                 var diff = 0; 
                 if (dates_by_oid[snapshot.ObjectID]._startDate){
                     var diff = Rally.util.DateTime.getDifference(new Date(dates_by_oid[snapshot.ObjectID]._startDate), new Date(snapshot._ValidFrom),'day');
@@ -57,15 +54,14 @@ Ext.define('AnystateCycleCalculator', {
                 } 
             }
          }, this);
-         console.log('total backlog with null', backlogItemsWithPrevStateNull);
          var categories = this._getCategories(start_date, end_date, dates_by_oid, this.granularity);
-   //      console.log('categories', categories);
+       // console.log('categories', categories);
 
          var series = [];
          series.push(this._getSeries(categories, dates_by_oid, this.granularity));  
          series.push(this._getSeries(categories, dates_by_oid, this.granularity,'HierarchicalRequirement'));  
          series.push(this._getSeries(categories, dates_by_oid, this.granularity,'Defect'));  
- //        console.log('series',series);
+         //console.log('series',series);
          
         return {
             series: series,

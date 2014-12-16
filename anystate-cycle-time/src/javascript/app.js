@@ -186,8 +186,9 @@ Ext.define('CustomApp', {
                  "_ProjectHierarchy": this.getContext().getProject().ObjectID,
                  "_TypeHierarchy": {$in: ['HierarchicalRequirement','Defect']},
                  "ScheduleState": {$in: [start_state, end_state]},
-                 "_PreviousValues.ScheduleState": {$exists: true}
-            },
+                 "$or": [{"_PreviousValues.ScheduleState": {$exists: true}},
+                      {"_SnapshotNumber": 0}]
+                 },
             fetch: ['ObjectID','ScheduleState','_ValidFrom','_ValidTo','_PreviousValues.ScheduleState','_SnapshotNumber','_TypeHierarchy'],
             hydrate: ['ScheduleState',"_PreviousValues.ScheduleState", '_TypeHierarchy'],
             compress: true,
