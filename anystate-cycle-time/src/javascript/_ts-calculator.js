@@ -17,15 +17,11 @@ Ext.define('AnystateCycleCalculator', {
          var dates_by_oid = {};
          var start_date = Rally.util.DateTime.add(new Date(), "year", 50);
          var end_date = Rally.util.DateTime.add(new Date(), "year", -50);
-         var backlogItemsWithPrevStateNull = 0;
          Ext.Array.each(snapshots, function(snapshot){
             // _PreviousValues.ScheduleState == null means we got created right into the state
             // _PreviousValues.ScheduleState == undefined means this particular change wasn't a transition (so we'll look for > 0)
             // TODO: check for just after the initial_state?  skipping is a problem to solve.
             var state = snapshot[this.groupField];
-            if (snapshot._PreviousValues == null || snapshot._PreviousValues.ScheduleState == null){
-                   backlogItemsWithPrevStateNull++;
-            }
 
             if (dates_by_oid[snapshot.ObjectID] == undefined){
                 var object_type = snapshot._TypeHierarchy.slice(-1)[0];

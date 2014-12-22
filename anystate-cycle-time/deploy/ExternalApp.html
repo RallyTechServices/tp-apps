@@ -3,10 +3,10 @@
 <head>
     <title>Cycle Time (Anystate)</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Mon Dec 15 2014 22:30:03 GMT-0800 (PST) -->
+    <!--  Build Date: Mon Dec 22 2014 15:54:59 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Mon Dec 15 2014 22:30:03 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Mon Dec 22 2014 15:54:59 GMT-0700 (MST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -158,15 +158,11 @@ Ext.define('AnystateCycleCalculator', {
          var dates_by_oid = {};
          var start_date = Rally.util.DateTime.add(new Date(), "year", 50);
          var end_date = Rally.util.DateTime.add(new Date(), "year", -50);
-         var backlogItemsWithPrevStateNull = 0;
          Ext.Array.each(snapshots, function(snapshot){
             // _PreviousValues.ScheduleState == null means we got created right into the state
             // _PreviousValues.ScheduleState == undefined means this particular change wasn't a transition (so we'll look for > 0)
             // TODO: check for just after the initial_state?  skipping is a problem to solve.
             var state = snapshot[this.groupField];
-            if (snapshot._PreviousValues == null || snapshot._PreviousValues.ScheduleState == null){
-                   backlogItemsWithPrevStateNull++;
-            }
 
             if (dates_by_oid[snapshot.ObjectID] == undefined){
                 var object_type = snapshot._TypeHierarchy.slice(-1)[0];
@@ -378,8 +374,23 @@ Ext.define('CustomApp', {
     ],
     
     launch: function() {
-        Ext.create('AnystateCycleCalculator',{});
         
+        this._validateProject().then({
+            scope: this,
+            success: function(){
+              this._initializeApp(); 
+            },
+            failure: function(error){
+                alert(error);
+            }
+        });
+        
+    },
+    _initializeApp: function(){
+        this.logger.log('_initializeApp');
+        
+        Ext.create('AnystateCycleCalculator',{});
+
         this.down('#selector_box').add({
             xtype: 'tsinfolink',
             title: 'Anystate Cycle Time App',
@@ -440,8 +451,38 @@ Ext.define('CustomApp', {
             margin: 10,
             disabled: true, 
             handler: this._exportData
+        });        
+    },
+    _validateProject: function(){
+        var deferred = Ext.create('Deft.Deferred');
+        var project = this.getContext().getProject();
+        var me = this; 
+        Rally.data.ModelFactory.getModel({
+            type: 'Project',
+            success: function(model) {
+                scope: this,
+                model.load(project.ObjectID, {
+                    fetch: ['Children'],
+                    callback: function(result, operation){
+                        me.logger.log('_validateProject',result,operation);
+                        if (operation.wasSuccessful()){
+                            if (result.get('Children').Count > 0 ){
+                                me.logger.log('_validateProject failed due to children',result.get('Children').Count);
+                                deferred.reject('Currently selected Team contains children.  Please select a Team with no children from the Project selector.');
+                            } else {
+                               deferred.resolve(); 
+                            }
+                        } else {
+                            me.logger.log('_validateProject failed due to error',operation);
+
+                            deferred.reject ('Unable to validate project due to an error loading the project.');
+                        }
+                    }
+                });
+            }
         });
-        
+
+        return deferred; 
     },
     _getStartState: function(){
         return this.down('#cb-from-state').getValue();
