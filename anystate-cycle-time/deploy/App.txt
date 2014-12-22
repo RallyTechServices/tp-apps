@@ -3,11 +3,11 @@
 <head>
     <title>Cycle Time (Anystate)</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Wed Dec 10 2014 17:32:13 GMT-0700 (MST) -->
+    <!--  Build Date: Mon Dec 22 2014 15:54:58 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Dec 10 2014 17:32:13 GMT-0700 (MST)";
-        var CHECKSUM = 12687702622;
+        var APP_BUILD_DATE = "Mon Dec 22 2014 15:54:58 GMT-0700 (MST)";
+        var CHECKSUM = 13464194995;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -158,23 +158,17 @@ Ext.define('AnystateCycleCalculator', {
          var dates_by_oid = {};
          var start_date = Rally.util.DateTime.add(new Date(), "year", 50);
          var end_date = Rally.util.DateTime.add(new Date(), "year", -50);
-         var backlogItemsWithPrevStateNull = 0;
          Ext.Array.each(snapshots, function(snapshot){
             // _PreviousValues.ScheduleState == null means we got created right into the state
             // _PreviousValues.ScheduleState == undefined means this particular change wasn't a transition (so we'll look for > 0)
             // TODO: check for just after the initial_state?  skipping is a problem to solve.
             var state = snapshot[this.groupField];
-            if (snapshot._PreviousState == null){
-                console.log('state',state,'_PreviousValues.state', snapshot._PreviousValues.ScheduleState);
-                backlogItemsWithPrevStateNull++;
-            }
+
             if (dates_by_oid[snapshot.ObjectID] == undefined){
                 var object_type = snapshot._TypeHierarchy.slice(-1)[0];
                 dates_by_oid[snapshot.ObjectID] = {_finalDate: null, _startDate: null, _type: object_type};
             }
-            if (state == final_state && snapshot._ValidFrom && ((snapshot._PreviousValues 
-                    && snapshot._PreviousValues.ScheduleState != undefined) ||  (snapshot._PreviousValues.ScheduleState == null))){
-
+            if (state == final_state && snapshot._ValidFrom){
                 dates_by_oid[snapshot.ObjectID]._finalDate = Rally.util.DateTime.fromIsoString(snapshot._ValidFrom);  
 
                 if (Rally.util.DateTime.getDifference(dates_by_oid[snapshot.ObjectID]._finalDate,end_date,'day') > 0){
@@ -183,8 +177,7 @@ Ext.define('AnystateCycleCalculator', {
                 } 
             }
 
-            if (state == initial_state && snapshot._ValidFrom && ((snapshot._PreviousValues 
-                    && snapshot._PreviousValues.ScheduleState != undefined) || (snapshot._PreviousValues.ScheduleState == null))){ //0 means that this is the first snapshot
+            if (state == initial_state && snapshot._ValidFrom){ //0 means that this is the first snapshot
                 var diff = 0; 
                 if (dates_by_oid[snapshot.ObjectID]._startDate){
                     var diff = Rally.util.DateTime.getDifference(new Date(dates_by_oid[snapshot.ObjectID]._startDate), new Date(snapshot._ValidFrom),'day');
@@ -198,15 +191,14 @@ Ext.define('AnystateCycleCalculator', {
                 } 
             }
          }, this);
-         console.log('total backlog with null', backlogItemsWithPrevStateNull);
          var categories = this._getCategories(start_date, end_date, dates_by_oid, this.granularity);
-   //      console.log('categories', categories);
+       // console.log('categories', categories);
 
          var series = [];
          series.push(this._getSeries(categories, dates_by_oid, this.granularity));  
          series.push(this._getSeries(categories, dates_by_oid, this.granularity,'HierarchicalRequirement'));  
          series.push(this._getSeries(categories, dates_by_oid, this.granularity,'Defect'));  
- //        console.log('series',series);
+         //console.log('series',series);
          
         return {
             series: series,
@@ -382,8 +374,23 @@ Ext.define('CustomApp', {
     ],
     
     launch: function() {
-        Ext.create('AnystateCycleCalculator',{});
         
+        this._validateProject().then({
+            scope: this,
+            success: function(){
+              this._initializeApp(); 
+            },
+            failure: function(error){
+                alert(error);
+            }
+        });
+        
+    },
+    _initializeApp: function(){
+        this.logger.log('_initializeApp');
+        
+        Ext.create('AnystateCycleCalculator',{});
+
         this.down('#selector_box').add({
             xtype: 'tsinfolink',
             title: 'Anystate Cycle Time App',
@@ -444,8 +451,38 @@ Ext.define('CustomApp', {
             margin: 10,
             disabled: true, 
             handler: this._exportData
+        });        
+    },
+    _validateProject: function(){
+        var deferred = Ext.create('Deft.Deferred');
+        var project = this.getContext().getProject();
+        var me = this; 
+        Rally.data.ModelFactory.getModel({
+            type: 'Project',
+            success: function(model) {
+                scope: this,
+                model.load(project.ObjectID, {
+                    fetch: ['Children'],
+                    callback: function(result, operation){
+                        me.logger.log('_validateProject',result,operation);
+                        if (operation.wasSuccessful()){
+                            if (result.get('Children').Count > 0 ){
+                                me.logger.log('_validateProject failed due to children',result.get('Children').Count);
+                                deferred.reject('Currently selected Team contains children.  Please select a Team with no children from the Project selector.');
+                            } else {
+                               deferred.resolve(); 
+                            }
+                        } else {
+                            me.logger.log('_validateProject failed due to error',operation);
+
+                            deferred.reject ('Unable to validate project due to an error loading the project.');
+                        }
+                    }
+                });
+            }
         });
-        
+
+        return deferred; 
     },
     _getStartState: function(){
         return this.down('#cb-from-state').getValue();
@@ -559,8 +596,9 @@ Ext.define('CustomApp', {
                  "_ProjectHierarchy": this.getContext().getProject().ObjectID,
                  "_TypeHierarchy": {$in: ['HierarchicalRequirement','Defect']},
                  "ScheduleState": {$in: [start_state, end_state]},
-                 "_PreviousValues.ScheduleState": {$exists: true}
-            },
+                 "$or": [{"_PreviousValues.ScheduleState": {$exists: true}},
+                      {"_SnapshotNumber": 0}]
+                 },
             fetch: ['ObjectID','ScheduleState','_ValidFrom','_ValidTo','_PreviousValues.ScheduleState','_SnapshotNumber','_TypeHierarchy'],
             hydrate: ['ScheduleState',"_PreviousValues.ScheduleState", '_TypeHierarchy'],
             compress: true,

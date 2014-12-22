@@ -9,8 +9,23 @@ Ext.define('CustomApp', {
     ],
     
     launch: function() {
-        Ext.create('AnystateCycleCalculator',{});
         
+        this._validateProject().then({
+            scope: this,
+            success: function(){
+              this._initializeApp(); 
+            },
+            failure: function(error){
+                alert(error);
+            }
+        });
+        
+    },
+    _initializeApp: function(){
+        this.logger.log('_initializeApp');
+        
+        Ext.create('AnystateCycleCalculator',{});
+
         this.down('#selector_box').add({
             xtype: 'tsinfolink',
             title: 'Anystate Cycle Time App',
@@ -71,8 +86,38 @@ Ext.define('CustomApp', {
             margin: 10,
             disabled: true, 
             handler: this._exportData
+        });        
+    },
+    _validateProject: function(){
+        var deferred = Ext.create('Deft.Deferred');
+        var project = this.getContext().getProject();
+        var me = this; 
+        Rally.data.ModelFactory.getModel({
+            type: 'Project',
+            success: function(model) {
+                scope: this,
+                model.load(project.ObjectID, {
+                    fetch: ['Children'],
+                    callback: function(result, operation){
+                        me.logger.log('_validateProject',result,operation);
+                        if (operation.wasSuccessful()){
+                            if (result.get('Children').Count > 0 ){
+                                me.logger.log('_validateProject failed due to children',result.get('Children').Count);
+                                deferred.reject('Currently selected Team contains children.  Please select a Team with no children from the Project selector.');
+                            } else {
+                               deferred.resolve(); 
+                            }
+                        } else {
+                            me.logger.log('_validateProject failed due to error',operation);
+
+                            deferred.reject ('Unable to validate project due to an error loading the project.');
+                        }
+                    }
+                });
+            }
         });
-        
+
+        return deferred; 
     },
     _getStartState: function(){
         return this.down('#cb-from-state').getValue();
@@ -186,8 +231,9 @@ Ext.define('CustomApp', {
                  "_ProjectHierarchy": this.getContext().getProject().ObjectID,
                  "_TypeHierarchy": {$in: ['HierarchicalRequirement','Defect']},
                  "ScheduleState": {$in: [start_state, end_state]},
-                 "_PreviousValues.ScheduleState": {$exists: true}
-            },
+                 "$or": [{"_PreviousValues.ScheduleState": {$exists: true}},
+                      {"_SnapshotNumber": 0}]
+                 },
             fetch: ['ObjectID','ScheduleState','_ValidFrom','_ValidTo','_PreviousValues.ScheduleState','_SnapshotNumber','_TypeHierarchy'],
             hydrate: ['ScheduleState',"_PreviousValues.ScheduleState", '_TypeHierarchy'],
             compress: true,
