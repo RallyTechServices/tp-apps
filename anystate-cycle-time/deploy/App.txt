@@ -3,11 +3,11 @@
 <head>
     <title>Cycle Time (Anystate)</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Mon Dec 22 2014 15:54:58 GMT-0700 (MST) -->
+    <!--  Build Date: Thu Jan 08 2015 08:23:33 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Mon Dec 22 2014 15:54:58 GMT-0700 (MST)";
-        var CHECKSUM = 13464194995;
+        var APP_BUILD_DATE = "Thu Jan 08 2015 08:23:33 GMT-0700 (MST)";
+        var CHECKSUM = 13526607369;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -518,9 +518,10 @@ Ext.define('CustomApp', {
     _createChart: function(){
         this.logger.log('_createChart');
         
-        var start_state = this._getStartState();
-        var end_state = this._getEndState();
-        if (start_state >= end_state){
+        var start_state = this.down('#cb-from-state').getValue();
+        var end_state = this.down('#cb-from-state').getValue();
+
+        if (!this._validateSelectedStates()){
             alert('The From State must come before the To State.');
             return;
         }
