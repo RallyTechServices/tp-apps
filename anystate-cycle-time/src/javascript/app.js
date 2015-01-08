@@ -154,7 +154,7 @@ Ext.define('CustomApp', {
         this.logger.log('_createChart');
         
         var start_state = this.down('#cb-from-state').getValue();
-        var end_state = this.down('#cb-from-state').getValue();
+        var end_state = this.down('#cb-to-state').getValue();
 
         if (!this._validateSelectedStates()){
             alert('The From State must come before the To State.');
